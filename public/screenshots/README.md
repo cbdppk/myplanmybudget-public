@@ -7,3 +7,4 @@ Recommended files:
 - budget.png
 - transactions.png
 - goals.png
+- assistant.png

@@ -53,6 +53,7 @@ dashboard.png
 budget.png
 transactions.png
 goals.png
+assistant.png
 ```
 
 ### Dashboard
@@ -70,6 +71,10 @@ goals.png
 ### Goals
 
 ![Goals](./public/screenshots/goals.png)
+
+### Assistant
+
+![Assistant](./public/screenshots/assistant.png)
 
 ## What This Project Proves
 
