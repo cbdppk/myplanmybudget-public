@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="MyplanMybudget icon">
+  <defs>
+    <linearGradient id="bg" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0ea5e9" />
+      <stop offset="1" stop-color="#155eef" />
+    </linearGradient>
+    <linearGradient id="coin" x1="42" y1="14" x2="53" y2="25" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#86efac" />
+      <stop offset="1" stop-color="#22c55e" />
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="56" height="56" rx="14" fill="url(#bg)" />
+  <circle cx="48" cy="18" r="6" fill="url(#coin)" />
+  <path d="M16 46V18h7l9 13 9-13h7v28h-7V30l-9 13-9-13v16z" fill="#ffffff" />
+</svg>

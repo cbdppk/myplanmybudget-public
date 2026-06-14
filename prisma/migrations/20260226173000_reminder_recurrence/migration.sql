@@ -1,0 +1,3 @@
+ALTER TABLE "Reminder"
+ADD COLUMN "recurrence" TEXT NOT NULL DEFAULT 'NONE',
+ADD COLUMN "recurrenceInterval" INTEGER NOT NULL DEFAULT 1;

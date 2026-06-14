@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "UserProfile"
+  ADD COLUMN "baselineIncome" DECIMAL NOT NULL DEFAULT 0,
+  ADD COLUMN "baselineExpense" DECIMAL NOT NULL DEFAULT 0,
+  ADD COLUMN "baselineSavings" DECIMAL NOT NULL DEFAULT 0,
+  ADD COLUMN "dailySpendEstimate" DECIMAL NOT NULL DEFAULT 0;

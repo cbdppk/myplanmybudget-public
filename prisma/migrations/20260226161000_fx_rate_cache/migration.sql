@@ -1,0 +1,11 @@
+CREATE TABLE "FxRateCache" (
+  "id" TEXT NOT NULL,
+  "base" TEXT NOT NULL,
+  "rates" JSONB NOT NULL,
+  "fetchedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
+  CONSTRAINT "FxRateCache_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX "FxRateCache_base_key" ON "FxRateCache"("base");

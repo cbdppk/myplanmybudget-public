@@ -1,0 +1,466 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum TxnType {
+  INCOME
+  EXPENSE
+  TRANSFER
+}
+
+enum TransactionKind {
+  BASELINE
+  EXTRA
+}
+
+enum ExtraTxnType {
+  EXTRA_INCOME
+  EXTRA_EXPENSE
+  EXTRA_SAVINGS
+}
+
+enum ReminderChannel {
+  IN_APP
+  EMAIL
+  PUSH
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum ContactInquiryStatus {
+  NEW
+  RESOLVED
+}
+
+model UserProfile {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  role      UserRole @default(USER)
+  isActive  Boolean  @default(true)
+  currency  String   @default("GHS")
+  baseCurrency String @default("GHS")
+  preferredCurrency String @default("GHS")
+  timezone  String   @default("Africa/Accra")
+  language  String   @default("en")
+  defaultBudgetScope String @default("MONTH")
+  incomeFrequency String @default("MONTHLY")
+  budgetStartMode String @default("CURRENT_MONTH")
+  monthStartDay Int @default(1)
+  blockExtrasWhenSurplusNegative Boolean @default(true)
+  showSimulationSuggestion Boolean @default(true)
+  dailyEstimateAuto Boolean @default(true)
+  autoCreateGoalsFromSavings Boolean @default(true)
+  goalFundingSource String @default("SAVINGS_PLUS_SURPLUS")
+  notifyDailyCheckIn Boolean @default(false)
+  notifyWeeklySummary Boolean @default(true)
+  notifyMonthEndReview Boolean @default(true)
+  notifyGoalProgress Boolean @default(true)
+  notifyInApp Boolean @default(true)
+  notifyEmail Boolean @default(false)
+  notifyPush Boolean @default(false)
+  analyticsOptIn Boolean @default(false)
+  tipsOptIn Boolean @default(true)
+  themePreference String @default("system")
+  emailVerified Boolean  @default(true)
+  reauthenticatedAt DateTime?
+  totpSecret    String?
+  totpEnabled   Boolean  @default(false)
+  totpBackupCodes TotpBackupCode[]
+  baselineIncome Decimal @default(0)
+  baselineExpense Decimal @default(0)
+  baselineSavings Decimal @default(0)
+  dailySpendEstimate Decimal @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  financialAccounts FinancialAccount[]
+  categories     Category[]
+  budgetPeriods  BudgetPeriod[]
+  budgetTargets  BudgetTarget[]
+  transactions   Transaction[]
+  recurringRules RecurringRule[]
+  goals          Goal[]
+  sandboxes      Sandbox[]
+  sandboxOverrides SandboxOverride[]
+  notes          Note[]
+  reminders      Reminder[]
+  pushSubscriptions PushSubscription[]
+  contactInquiriesHandled ContactInquiry[] @relation("ContactInquiryHandledBy")
+  assistantFeedback AssistantFeedback[]
+  assistantFeedbackHandled AssistantFeedback[] @relation("AssistantFeedbackHandledBy")
+  auditEvents    AuditEvent[]
+  credential     AuthCredential?
+  authUser       User?
+}
+
+model FinancialAccount {
+  id             String   @id @default(cuid())
+  userId         String
+  name           String
+  type           String   @default("cash")
+  balance        Decimal  @default(0)
+  openingBalance Decimal  @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  fromTransfers Transaction[] @relation("FromAccount")
+  toTransfers   Transaction[] @relation("ToAccount")
+
+  @@index([userId])
+  @@map("Account")
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  kind      String   @default("expense")
+  color     String?
+  icon      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  targets BudgetTarget[]
+  txns    Transaction[]
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model BudgetPeriod {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  carryIn   Decimal  @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     UserProfile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  targets  BudgetTarget[]
+  sandboxes Sandbox[]
+
+  @@index([userId, startDate])
+}
+
+model BudgetTarget {
+  id          String   @id @default(cuid())
+  userId      String
+  periodId    String
+  categoryId  String
+  amount      Decimal
+  cadence     String  @default("MONTHLY")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user     UserProfile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  period   BudgetPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  category Category     @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, periodId, categoryId])
+  @@index([userId, periodId])
+}
+
+model Transaction {
+  id            String   @id @default(cuid())
+  userId        String
+  type          TxnType
+  kind          TransactionKind @default(EXTRA)
+  extraType     ExtraTxnType?
+  occurredAt    DateTime @default(now())
+  amount        Decimal
+  memo          String?
+  categoryId    String?
+  accountId     String?
+  fromAccountId String?
+  toAccountId   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user     UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  account  FinancialAccount?    @relation(fields: [accountId], references: [id], onDelete: SetNull)
+
+  fromAccount FinancialAccount? @relation("FromAccount", fields: [fromAccountId], references: [id], onDelete: SetNull)
+  toAccount   FinancialAccount? @relation("ToAccount", fields: [toAccountId], references: [id], onDelete: SetNull)
+
+  @@index([userId, occurredAt])
+  @@index([userId, categoryId])
+  @@index([userId, kind, extraType, occurredAt])
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  profileId     String?   @unique
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  profile  UserProfile? @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  accounts Account[]
+  sessions Session[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("AuthAccount")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("AuthVerificationToken")
+}
+
+model RecurringRule {
+  id         String   @id @default(cuid())
+  userId     String
+  name       String
+  amount     Decimal
+  type       TxnType
+  categoryId String?
+  cadence    String
+  dayOfMonth Int?
+  dayOfWeek  Int?
+  nextRunAt  DateTime
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, nextRunAt])
+  // Allows push-dispatch cron to efficiently query active rules by due time without per-user filter.
+  @@index([active, nextRunAt])
+}
+
+model Goal {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  target    Decimal
+  current   Decimal  @default(0)
+  dueDate   DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Sandbox {
+  id        String   @id @default(cuid())
+  userId    String
+  periodId  String?
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   UserProfile   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  period BudgetPeriod? @relation(fields: [periodId], references: [id], onDelete: SetNull)
+  overrides SandboxOverride[]
+
+  @@index([userId])
+}
+
+model SandboxOverride {
+  id         String   @id @default(cuid())
+  userId     String
+  sandboxId  String
+  kind       String
+  key        String
+  value      Json
+  createdAt  DateTime @default(now())
+
+  user    UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sandbox Sandbox     @relation(fields: [sandboxId], references: [id], onDelete: Cascade)
+
+  @@index([userId, sandboxId])
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String?
+  content   String
+  pinned    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, pinned])
+}
+
+model Reminder {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  dueAt     DateTime
+  channel   ReminderChannel @default(IN_APP)
+  recurrence String @default("NONE")
+  recurrenceInterval Int @default(1)
+  done      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, dueAt])
+}
+
+model PushSubscription {
+  id             String   @id @default(cuid())
+  userId         String
+  endpoint       String   @unique
+  p256dh         String
+  auth           String
+  expirationTime DateTime?
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, active])
+}
+
+model AuditEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  user UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model AuthCredential {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model FxRateCache {
+  id        String   @id @default(cuid())
+  base      String   @unique
+  rates     Json
+  fetchedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ContactInquiry {
+  id          String              @id @default(cuid())
+  name        String
+  email       String
+  subject     String?
+  message     String
+  status      ContactInquiryStatus @default(NEW)
+  handledById String?
+  handledBy   UserProfile?        @relation("ContactInquiryHandledBy", fields: [handledById], references: [id], onDelete: SetNull)
+  resolvedAt  DateTime?
+  createdAt   DateTime            @default(now())
+
+  @@index([status, createdAt])
+  @@index([email])
+}
+
+model AssistantFeedback {
+  id             String               @id @default(cuid())
+  userId         String
+  name           String?
+  email          String
+  subject        String?
+  message        String
+  category       String               @default("COMPLAINT")
+  sourcePage     String               @default("assistant")
+  sourceQuestion String?
+  status         ContactInquiryStatus @default(NEW)
+  handledById    String?
+  resolvedAt     DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  user      UserProfile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  handledBy UserProfile? @relation("AssistantFeedbackHandledBy", fields: [handledById], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([category, status, createdAt])
+  @@index([userId, createdAt])
+  @@index([email])
+}
+
+model TotpBackupCode {
+  id        String    @id @default(cuid())
+  userId    String
+  codeHash  String
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model RateLimitBucket {
+  key       String   @id
+  count     Int
+  resetAt   DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([resetAt])
+}
