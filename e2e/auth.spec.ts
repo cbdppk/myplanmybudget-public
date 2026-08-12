@@ -6,18 +6,20 @@ const TEST_PASSWORD = process.env.E2E_PASSWORD;
 test.describe("Authentication", () => {
   test("login page loads", async ({ page }) => {
     await page.goto("/login");
+    const form = page.locator("form").first();
     await expect(page.getByLabel("Email")).toBeVisible();
-    await expect(page.getByLabel("Password")).toBeVisible();
-    await expect(page.getByRole("button", { name: /sign in/i })).toBeVisible();
+    await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
+    await expect(form.getByRole("button", { name: /sign in/i })).toBeVisible();
   });
 
   test("rejects invalid credentials", async ({ page }) => {
     await page.goto("/login");
+    const form = page.locator("form").first();
     await page.getByLabel("Email").fill("wrong@example.com");
-    await page.getByLabel("Password").fill("wrongpassword");
-    await page.getByRole("button", { name: /sign in/i }).click();
+    await page.getByLabel("Password", { exact: true }).fill("wrongpassword");
+    await form.getByRole("button", { name: /sign in/i }).click();
     await expect(page).toHaveURL(/\/login/, { timeout: 30_000 });
-    await expect(page.getByRole("button", { name: /sign in/i })).toBeEnabled({ timeout: 30_000 });
+    await expect(form.getByRole("button", { name: /sign in/i })).toBeEnabled({ timeout: 30_000 });
   });
 
   test("redirects unauthenticated users from dashboard", async ({ page }) => {
@@ -37,9 +39,10 @@ test.describe("Authenticated flows", () => {
 
   test.beforeEach(async ({ page }) => {
     await page.goto("/login");
+    const form = page.locator("form").first();
     await page.getByLabel("Email").fill(TEST_EMAIL!);
-    await page.getByLabel("Password").fill(TEST_PASSWORD!);
-    await page.getByRole("button", { name: /sign in/i }).click();
+    await page.getByLabel("Password", { exact: true }).fill(TEST_PASSWORD!);
+    await form.getByRole("button", { name: /sign in/i }).click();
     await expect(page).toHaveURL(/\/(dashboard|track)/, { timeout: 30_000 });
   });
 

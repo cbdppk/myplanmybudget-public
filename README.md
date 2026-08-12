@@ -1,123 +1,110 @@
-# MyPlanMyBudget
+# MyplanMybudget — Product MVP (Next.js + Prisma)
 
-A personal money management app for tracking income, expenses, budgets, savings goals, and financial planning.
+This repository now contains a working MVP for **MyplanMybudget** aligned to PDF1 Product scope.
 
-## Overview
-
-MyPlanMyBudget is a portfolio demo project built to help users organize their personal finances from a clean dashboard. The app focuses on budgeting, spending awareness, savings planning, transaction tracking, reminders, notes, account settings, and simple financial decision support.
-
-The goal is to make personal money management easier by giving users a structured way to see where money comes from, where it goes, and what plan they should follow.
-
-## Features
-
-- Dashboard overview
-- Income tracking
-- Expense tracking
-- Budget categories
-- Savings goals
-- Spending summaries
-- Transaction history
-- Search and filtering
-- Notes and reminders
-- Account and security settings
-- Responsive UI
-- Form validation
-- Personal finance planning workflow
-
-## Tech Stack
-
-- Next.js
-- React
-- TypeScript
+## Stack
+- Next.js (App Router) + TypeScript
 - Tailwind CSS
-- Prisma
-- PostgreSQL-compatible database
-- NextAuth
-- Node.js API routes and server actions
-- Playwright and Node test runner
-- GitHub
-- Vercel
+- Prisma data layer (Postgres schema + local offline shim runtime in this environment)
+- Server Actions pattern
+- Cookie-based auth/session + route protection middleware
 
-## Screenshots
-
-Screenshots should be added inside:
-
-```txt
-public/screenshots
+## Quick start
+```bash
+pnpm i
+cp .env.example .env
 ```
 
-Expected screenshots:
+Set DB URLs in `.env`:
+- `DATABASE_URL` = primary app runtime connection string (non-bypass RLS role)
+- `DIRECT_URL` = direct owner/admin connection string (migrations only)
+- For Vercel project env vars, paste raw URLs without wrapping quotes.
 
-```txt
-dashboard.png
-budget.png
-transactions.png
-goals.png
-assistant.png
-```
+Optional push dispatch vars:
+- `PUSH_DISPATCH_SECRET` = secret for `/api/push/dispatch` machine calls
+- `VAPID_SUBJECT` = mailto/url subject for web-push
+- `VAPID_PUBLIC_KEY` = VAPID public key (used by client subscribe flow)
+- `VAPID_PRIVATE_KEY` = VAPID private key (used for live dispatch mode)
 
-### Dashboard
+Optional admin bootstrap var:
+- `ADMIN_EMAILS` = comma-separated emails that should be auto-promoted to admin on signup/login
 
-![Dashboard](./public/screenshots/dashboard.png)
+Optional DB identity strictness var:
+- `DB_IDENTITY_STRICT` = `true` to force per-query strict DB identity/RLS wiring. When `DATABASE_URL` uses an RLS runtime user (for example `app_runtime_user`), strict mode is auto-forced even in local dev.
 
-### Budget
-
-![Budget](./public/screenshots/budget.png)
-
-### Transactions
-
-![Transactions](./public/screenshots/transactions.png)
-
-### Goals
-
-![Goals](./public/screenshots/goals.png)
-
-### Assistant
-
-![Assistant](./public/screenshots/assistant.png)
-
-## What This Project Proves
-
-This project shows my ability to build practical user-focused applications with dashboards, forms, state management, data organization, responsive UI, authentication flows, and real-world personal finance workflows.
-
-It demonstrates that I can design and build apps that are useful beyond static pages.
-
-## Getting Started
-
-Install dependencies:
+Optional observability vars:
+- `PERF_LOGS` = `true` to emit slow-query/slow-operation logs (default off)
+- `SLOW_QUERY_MS` = Prisma query slow threshold (ms)
+- `OP_SLOW_MS` = high-level route/data operation slow threshold (ms)
+- `DB_TX_MAX_WAIT_MS` = max wait for identity-wrapped Prisma transactions to acquire DB resources
+- `DB_TX_TIMEOUT_MS` = timeout for identity-wrapped Prisma transactions
 
 ```bash
-pnpm install
+pnpm prisma:generate
+pnpm prisma:migrate
+pnpm prisma:seed
+pnpm dev
 ```
 
-Run the development server:
-
+## Verification commands
 ```bash
-pnpm run dev
+pnpm run test
+pnpm build
+pnpm run test:smoke
 ```
 
-Open the local app in your browser:
-
-```txt
-http://localhost:3000
+## E2E (Playwright)
+Install Chromium once:
+```bash
+pnpm exec playwright install --with-deps chromium
 ```
 
-## Environment Variables
+Run E2E:
+```bash
+pnpm test:e2e
+```
 
-See `.env.example`.
+Notes:
+- Do not append inline text/comments on the install command line.
+- By default, Playwright now runs this app on `http://127.0.0.1:3100` to avoid port `3000` conflicts with other local projects.
 
-Do not commit real `.env` files.
+## CI
+- GitHub Actions workflow: `.github/workflows/ci.yml`
+- Runs on each push to `main` and all pull requests:
+  - install
+  - prisma generate
+  - typecheck
+  - tests
+  - production build
+  - smoke flow check
 
-## Deployment
+## Product docs
+Regenerate PDF1 Product spec from source:
+```bash
+python3 docs/pdf1-product/generate_pdf.py
+```
 
-This project can be deployed on Vercel after setting the required environment variables from `.env.example`.
+Source file:
+- `docs/pdf1-product/PDF1_PRODUCT.md`
+- `docs/PUSH_DISPATCH_CRON.md` (push dispatch schedule/run guide)
 
-Use demo data only for public deployments. Do not connect this public portfolio version to a private production database or real personal finance records.
+Generated outputs:
+- `docs/MyplanMybudget_PDF1_Product_UX.pdf`
+- `docs/MyplanMybudget_PDF1_Product_UX (1).pdf`
 
-## Note
+## Status update workflow (required)
+Every implementation update should append a bullet in `docs/PROJECT_STATUS.md`.
 
-This is a cleaned public portfolio version of a private/local project. It is prepared to demonstrate the app structure, features, UI, and implementation approach.
+Use:
+```bash
+pnpm status:update "short summary of what changed" path/to/file1 path/to/file2
+```
 
-## Status
+Reference checklist:
+- `docs/PRODUCTION_UX_CHECKLIST.md`
 
-Portfolio demo project for full-stack freelance work, frontend development, dashboard UI, and AI/coding evaluation gig applications.
+## Notes
+- Auth/session utilities are implemented in `lib/auth`.
+- Protected routes are enforced in `middleware.ts`.
+- Admin control page is available at `/admin` for users with `ADMIN` role.
+- When network access is unavailable, Prisma engine downloads may fail; local shim files are used for runtime continuity.
