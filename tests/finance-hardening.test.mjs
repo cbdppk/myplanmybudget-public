@@ -20,6 +20,68 @@ test("getPeriodDayMetrics respects custom period boundaries", async () => {
   assert.equal(after.effectiveNow.toISOString(), end.toISOString());
 });
 
+test("getPeriodDayMetrics counts calendar days across the fall DST transition", async () => {
+  const { getPeriodDayMetrics, remainingPeriodDays } = await loadTsModule("lib/finance/math.ts");
+  const start = new Date("2026-11-01T04:00:00.000Z");
+  const end = new Date("2026-12-01T04:59:59.999Z");
+  const now = new Date("2026-11-15T17:00:00.000Z");
+
+  const result = getPeriodDayMetrics(start, end, now, "America/New_York");
+  assert.equal(result.totalDays, 30);
+  assert.equal(result.elapsedDays, 15);
+  assert.equal(remainingPeriodDays(result.totalDays, result.elapsedDays), 16);
+});
+
+test("setupBudgetPeriodDays uses the scheduled month for next-month budgets", async () => {
+  const { setupBudgetPeriodDays } = await loadTsModule("lib/money/frequency.ts");
+  const august = new Date(2026, 7, 2, 12, 0, 0);
+
+  assert.equal(setupBudgetPeriodDays(august, "CURRENT_MONTH"), 31);
+  assert.equal(setupBudgetPeriodDays(august, "NEXT_MONTH"), 30);
+});
+
+test("quick transaction posting distinguishes regular income from extra income", async () => {
+  const { quickTransactionPosting } = await loadTsModule("lib/finance/transaction-shape.ts");
+
+  assert.deepEqual(
+    quickTransactionPosting({ flowMode: "INCOME", incomeKind: "REGULAR", outflowKind: "EXPENSE" }),
+    { kind: "BASELINE", type: "INCOME", extraType: undefined }
+  );
+  assert.deepEqual(
+    quickTransactionPosting({ flowMode: "INCOME", incomeKind: "EXTRA", outflowKind: "EXPENSE" }),
+    { kind: "EXTRA", type: "INCOME", extraType: "EXTRA_INCOME" }
+  );
+});
+
+test("extraExpenseAvailable preserves the plan and includes carry-in", async () => {
+  const { extraExpenseAvailable } = await loadTsModule("lib/finance/math.ts");
+
+  assert.equal(
+    extraExpenseAvailable({
+      carryIn: 100,
+      baselineIncome: 3000,
+      baselineExpense: 2000,
+      baselineSavings: 500,
+      actualIncome: 3000,
+      extraIncome: 0,
+      extraExpense: 200,
+    }),
+    400
+  );
+  assert.equal(
+    extraExpenseAvailable({
+      carryIn: 0,
+      baselineIncome: 3000,
+      baselineExpense: 2000,
+      baselineSavings: 500,
+      actualIncome: 500,
+      extraIncome: 500,
+      extraExpense: 0,
+    }),
+    1000
+  );
+});
+
 test("computeCarryForwardFromGroups ignores transfer rows", async () => {
   const { computeCarryForwardFromGroups } = await loadTsModule("lib/finance/math.ts");
 

@@ -3,10 +3,12 @@ import { getMonthlyMoneyOverview } from "@/lib/data/money-overview";
 import { ensureCurrentBudgetPeriod, getActiveUser, toNumber } from "@/lib/data/utils";
 import { fromMonthly, normalizeToMonthly, type MoneyCadence } from "@/lib/money/frequency";
 import { getDisplayCurrencyContext } from "@/lib/data/currency";
+import { materializeDueRecurringRules } from "@/lib/data/recurring";
 import { logAudit } from "@/lib/data/audit";
-import { getPeriodDayMetrics, round2 } from "@/lib/finance/math";
+import { getPeriodDayMetrics, remainingPeriodDays, round2 } from "@/lib/finance/math";
 import { withPerfTiming } from "@/lib/observability/perf";
 import { Prisma } from "@prisma/client";
+import { actualSavingsWhere, incomeWhere, plannedExpenseWhere } from "@/lib/data/txn-filters";
 
 const DEFAULT_EXPENSE_CATEGORIES = [
   "Food",
@@ -66,10 +68,17 @@ async function ensureBudgetCategories(userId: string) {
 export async function getBudgetPlannerData() {
   return withPerfTiming("budget_planner_data", {}, async () => {
     const user = await getActiveUser();
+    // Post due recurring transactions before reading so every figure includes them.
+    await materializeDueRecurringRules(user.id);
     await ensureBudgetCategories(user.id);
     const period = await ensureCurrentBudgetPeriod(user.id);
     const now = new Date();
-    const { totalDays: daysInMonth, elapsedDays: dayOfMonth, effectiveNow } = getPeriodDayMetrics(period.startDate, period.endDate, now);
+    const { totalDays: daysInMonth, elapsedDays: dayOfMonth, effectiveNow } = getPeriodDayMetrics(
+      period.startDate,
+      period.endDate,
+      now,
+      user.timezone
+    );
 
   const [categories, targets, monthIncomeAgg, monthExpenseOnlyAgg, monthSavingsAgg, overview, fx] = await Promise.all([
     prisma.category.findMany({
@@ -82,27 +91,19 @@ export async function getBudgetPlannerData() {
       select: { categoryId: true, amount: true, cadence: true },
     }),
     prisma.transaction.aggregate({
-      where: { userId: user.id, type: "INCOME", occurredAt: { gte: period.startDate, lte: effectiveNow } },
+      where: incomeWhere(user.id, period.startDate, effectiveNow),
       _sum: { amount: true },
     }),
-    // Pure expenses — savings-type transactions excluded to avoid double-counting
+    // Planned expense spend only — what actually consumes the category budget.
+    // Off-budget EXTRA_EXPENSE is tracked separately (extrasSummary) since it
+    // draws from surplus, not the plan; EXTRA_SAVINGS is excluded too.
     prisma.transaction.aggregate({
-      where: {
-        userId: user.id,
-        type: "EXPENSE",
-        NOT: { extraType: "EXTRA_SAVINGS" },
-        occurredAt: { gte: period.startDate, lte: effectiveNow },
-      },
+      where: plannedExpenseWhere(user.id, period.startDate, effectiveNow),
       _sum: { amount: true },
     }),
     // Savings contributions logged this period
     prisma.transaction.aggregate({
-      where: {
-        userId: user.id,
-        type: "EXPENSE",
-        extraType: "EXTRA_SAVINGS",
-        occurredAt: { gte: period.startDate, lte: effectiveNow },
-      },
+      where: actualSavingsWhere(user.id, period.startDate, effectiveNow),
       _sum: { amount: true },
     }),
     getMonthlyMoneyOverview(user.id, { period }),
@@ -133,7 +134,7 @@ export async function getBudgetPlannerData() {
   const actualExpenseOnly = toNumber(monthExpenseOnlyAgg._sum.amount);
   const actualSavings = toNumber(monthSavingsAgg._sum.amount);
   const actualExpense = round2(actualExpenseOnly + actualSavings); // total outflow for projection calcs
-  const daysRemaining = Math.max(0, daysInMonth - dayOfMonth);
+  const daysRemaining = remainingPeriodDays(daysInMonth, dayOfMonth);
   const expectedExpenseToDate = round2((baselineExpense * dayOfMonth) / Math.max(1, daysInMonth));
   const expenseDrift = round2(actualExpenseOnly - expectedExpenseToDate);
   const projectedExpenseAtMonthEnd = dayOfMonth > 0 ? round2((actualExpenseOnly / dayOfMonth) * daysInMonth) : 0;
@@ -161,6 +162,8 @@ export async function getBudgetPlannerData() {
         monthExpenseOnly: actualExpenseOnly,
         monthSavings: actualSavings,
         monthExpense: actualExpense,
+        effectiveIncome: overview.incomeTotal,
+        realBalance: overview.surplusRaw,
         expectedExpenseToDate,
         expenseDrift,
         projectedExpenseAtMonthEnd,
@@ -191,16 +194,24 @@ export async function getBudgetPlannerData() {
 
 export async function getBudgetImpactSnapshot(userId: string) {
   const period = await ensureCurrentBudgetPeriod(userId);
+  const user = await prisma.userProfile.findUniqueOrThrow({ where: { id: userId } });
   const now = new Date();
-  const { totalDays: daysInMonth, elapsedDays: dayOfMonth, effectiveNow } = getPeriodDayMetrics(period.startDate, period.endDate, now);
+  const { totalDays: daysInMonth, elapsedDays: dayOfMonth, effectiveNow } = getPeriodDayMetrics(
+    period.startDate,
+    period.endDate,
+    now,
+    user.timezone
+  );
+  // Planned expense only — what consumes the category budget. Off-budget
+  // EXTRA_EXPENSE draws from surplus and is handled separately by callers.
   const expenseWhere = {
     userId,
     type: "EXPENSE" as const,
+    extraType: null,
     occurredAt: { gte: period.startDate, lte: effectiveNow },
     OR: [
-      { extraType: "EXTRA_EXPENSE" as const },
-      { extraType: null, category: { is: null } },
-      { extraType: null, category: { is: { kind: "expense" } } },
+      { category: { is: null } },
+      { category: { is: { kind: "expense" } } },
     ],
   } satisfies Prisma.TransactionWhereInput;
   const savingsWhere = {
@@ -213,8 +224,7 @@ export async function getBudgetImpactSnapshot(userId: string) {
     ],
   } satisfies Prisma.TransactionWhereInput;
 
-  const [user, monthExpenseAgg, monthSavingsAgg, monthIncomeAgg, targets, categories] = await Promise.all([
-    prisma.userProfile.findUniqueOrThrow({ where: { id: userId } }),
+  const [monthExpenseAgg, monthSavingsAgg, monthIncomeAgg, targets, categories] = await Promise.all([
     prisma.transaction.aggregate({
       where: expenseWhere,
       _sum: { amount: true },
@@ -227,13 +237,18 @@ export async function getBudgetImpactSnapshot(userId: string) {
       where: { userId, type: "INCOME", occurredAt: { gte: period.startDate, lte: effectiveNow } },
       _sum: { amount: true },
     }),
-    prisma.budgetTarget.findMany({ where: { userId, periodId: period.id }, select: { categoryId: true, amount: true } }),
+    prisma.budgetTarget.findMany({
+      where: { userId, periodId: period.id },
+      select: { categoryId: true, amount: true, category: { select: { kind: true } } },
+    }),
     prisma.category.findMany({ where: { userId, kind: "expense" }, select: { id: true, name: true } }),
   ]);
 
-  const expenseTargetTotal = targets.reduce((sum, item) => sum + toNumber(item.amount), 0);
+  const expenseTargetTotal = targets
+    .filter((item) => item.category.kind === "expense")
+    .reduce((sum, item) => sum + toNumber(item.amount), 0);
   const plannedExpense = Math.max(toNumber(user.baselineExpense), expenseTargetTotal);
-  const plannedIncome = Math.max(toNumber(user.baselineIncome), toNumber(monthIncomeAgg._sum.amount));
+  const plannedIncome = toNumber(user.baselineIncome);
   const plannedSavings = toNumber(user.baselineSavings);
   const actualExpense = toNumber(monthExpenseAgg._sum.amount);
   const actualSavings = toNumber(monthSavingsAgg._sum.amount);
@@ -276,8 +291,7 @@ export async function getBudgetImpactSnapshot(userId: string) {
 export async function saveBudgetTargets(items: Array<{ categoryId: string; amount: number; cadence?: MoneyCadence }>) {
   const user = await getActiveUser();
   const period = await ensureCurrentBudgetPeriod(user.id);
-  const now = new Date();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const daysInMonth = getPeriodDayMetrics(period.startDate, period.endDate, new Date(), user.timezone).totalDays;
 
   const latestByCategory = new Map<string, { amount: number; cadence: MoneyCadence }>();
   for (const item of items) {
@@ -286,6 +300,30 @@ export async function saveBudgetTargets(items: Array<{ categoryId: string; amoun
       amount: normalizeToMonthly(Math.max(0, round2(item.amount)), cadence, daysInMonth),
       cadence,
     });
+  }
+
+  const categoryIds = Array.from(latestByCategory.keys());
+  const categories = await prisma.category.findMany({
+    where: { userId: user.id, id: { in: categoryIds } },
+    select: { id: true, name: true, kind: true },
+  });
+  if (categories.length !== categoryIds.length) {
+    throw new Error("One or more budget categories are invalid.");
+  }
+  const categoryById = new Map(categories.map((category) => [category.id, category]));
+  let expenseAllocated = 0;
+  let savingsAllocated = 0;
+  for (const [categoryId, item] of latestByCategory.entries()) {
+    const category = categoryById.get(categoryId);
+    if (!category) continue;
+    if (normalizedKind(category.kind, category.name) === "savings") savingsAllocated += item.amount;
+    else expenseAllocated += item.amount;
+  }
+  if (round2(expenseAllocated) > toNumber(user.baselineExpense) + 0.01) {
+    throw new Error("Expense allocations cannot exceed monthly expense.");
+  }
+  if (round2(savingsAllocated) > toNumber(user.baselineSavings) + 0.01) {
+    throw new Error("Savings allocations cannot exceed monthly savings.");
   }
 
   const operations = Array.from(latestByCategory.entries()).map(([categoryId, item]) => {
@@ -352,8 +390,7 @@ export async function getBudgetEditData() {
   const user = await getActiveUser();
   await ensureBudgetCategories(user.id);
   const period = await ensureCurrentBudgetPeriod(user.id);
-  const now = new Date();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const daysInMonth = getPeriodDayMetrics(period.startDate, period.endDate, new Date(), user.timezone).totalDays;
 
   const [categories, targets, fx] = await Promise.all([
     prisma.category.findMany({
@@ -401,6 +438,7 @@ export async function getBudgetEditData() {
     incomeFrequency,
     incomeEntered: fromMonthly(baselineIncomeMonthly, incomeFrequency, daysInMonth),
     budgetStartMode,
+    monthStartDay: user.monthStartDay,
     categories: rows,
   };
 }
@@ -417,13 +455,21 @@ export async function saveBudgetEditFlow(input: {
   const user = await getActiveUser();
   const period = await ensureCurrentBudgetPeriod(user.id);
   const now = new Date();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const daysInMonth = getPeriodDayMetrics(period.startDate, period.endDate, now, user.timezone).totalDays;
 
   const incomeFrequency = input.incomeFrequency ?? "MONTHLY";
   const baselineIncome = normalizeToMonthly(Math.max(0, round2(input.incomeAmount)), incomeFrequency, daysInMonth);
   const baselineExpense = Math.max(0, round2(input.monthlyExpense));
   const baselineSavings = Math.max(0, round2(input.monthlySavings));
-  const monthStartDay = Math.min(28, Math.max(1, now.getDate()));
+  // Anchor the budget month to "today" only on first-time setup. Re-saving the
+  // budget must never silently shift existing period boundaries (that would
+  // re-bucket transactions and corrupt carry-over history).
+  const hasExistingPeriod = Boolean(
+    await prisma.budgetPeriod.findFirst({ where: { userId: user.id }, select: { id: true } })
+  );
+  const monthStartDay = hasExistingPeriod
+    ? user.monthStartDay
+    : Math.min(28, Math.max(1, now.getDate()));
   const preferredCurrency = input.preferredCurrency.trim().toUpperCase();
 
   const normalizedRows = input.categories

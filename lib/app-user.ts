@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { setDbIdentity } from "@/lib/security/db-context";
 
-const DEMO_EMAIL = "demo@example.com";
+const DEMO_EMAIL = "demo@myplanmybudget.app";
 
 export async function getOrCreateDemoUser() {
   setDbIdentity({ userEmail: DEMO_EMAIL });

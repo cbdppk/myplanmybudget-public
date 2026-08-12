@@ -6,6 +6,8 @@ import { createReminder } from "@/lib/data/reminders";
 import { setNotePinned } from "@/lib/data/notes";
 import { setReminderDone } from "@/lib/data/reminders";
 import { checkRateLimit, getClientKey } from "@/lib/security/rate-limit";
+import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 
 const QuickExpensePayloadSchema = z.object({
   kind: z.enum(["BASELINE", "EXTRA"]).optional(),
@@ -107,7 +109,36 @@ export async function POST(request: Request) {
   const processed: string[] = [];
   const failed: Array<{ id: string; reason: string }> = [];
 
+  // Idempotency: clients retry whole batches after network failures, so any
+  // operation already recorded as applied is acknowledged without re-applying —
+  // a replayed expense must never post twice.
+  const opIds = parsed.data.operations.map((op) => op.id);
+  const alreadyApplied = new Set(
+    (
+      await prisma.offlineSyncOp.findMany({
+        where: { userId: user.id, opId: { in: opIds } },
+        select: { opId: true },
+      })
+    ).map((row) => row.opId)
+  );
+
   for (const op of parsed.data.operations) {
+    if (alreadyApplied.has(op.id)) {
+      processed.push(op.id);
+      continue;
+    }
+    try {
+      // Claim the op id before applying: a concurrent duplicate request loses
+      // the unique-constraint race and skips instead of double-applying.
+      await prisma.offlineSyncOp.create({ data: { userId: user.id, opId: op.id } });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        processed.push(op.id);
+        continue;
+      }
+      failed.push({ id: op.id, reason: "Sync bookkeeping failed." });
+      continue;
+    }
     try {
       if (op.type === "quick_expense_create") {
         await createQuickExpense(op.payload);
@@ -126,6 +157,10 @@ export async function POST(request: Request) {
         processed.push(op.id);
       }
     } catch (error) {
+      // Release the claim so the client can retry a genuinely failed operation.
+      await prisma.offlineSyncOp
+        .deleteMany({ where: { userId: user.id, opId: op.id } })
+        .catch(() => undefined);
       const reason = error instanceof Error ? error.message : "Sync failed.";
       failed.push({ id: op.id, reason });
     }

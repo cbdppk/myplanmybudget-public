@@ -1,9 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { ensureCurrentBudgetPeriod, toNumber } from "@/lib/data/utils";
-import { getPeriodDayMetrics, round2 } from "@/lib/finance/math";
+import { computePeriodActuals, periodSurplus } from "@/lib/data/txn-filters";
+import { dayBoundsInTz } from "@/lib/dates";
+import { effectiveRegularIncome, getPeriodDayMetrics, round2 } from "@/lib/finance/math";
 
 export type MoneyOverview = {
   periodName: string;
+  periodActive: boolean;
   now: Date;
   dayOfMonth: number;
   daysInMonth: number;
@@ -39,48 +42,44 @@ type OverviewPeriod = { name: string; startDate: Date; endDate: Date; carryIn?: 
 export async function getMonthlyMoneyOverview(userId: string, options?: { period?: OverviewPeriod }): Promise<MoneyOverview> {
   const period = options?.period ?? (await ensureCurrentBudgetPeriod(userId));
   const now = new Date();
-  const { totalDays: daysInMonth, elapsedDays: dayOfMonth } = getPeriodDayMetrics(period.startDate, period.endDate, now);
-  const startOfToday = new Date(now);
-  startOfToday.setHours(0, 0, 0, 0);
-  const endOfToday = new Date(now);
-  endOfToday.setHours(23, 59, 59, 999);
+  const user = await prisma.userProfile.findUniqueOrThrow({
+    where: { id: userId },
+    select: {
+      baselineIncome: true,
+      baselineExpense: true,
+      baselineSavings: true,
+      timezone: true,
+    },
+  });
+  const { totalDays: daysInMonth, elapsedDays: dayOfMonth, effectiveNow } = getPeriodDayMetrics(
+    period.startDate,
+    period.endDate,
+    now,
+    user.timezone
+  );
+  const periodActive = now >= period.startDate && now <= period.endDate;
+  const actualWindowEnd = periodActive ? effectiveNow : new Date(period.startDate.getTime() - 1);
+  const { start: startOfToday, end: endOfToday } = dayBoundsInTz(user.timezone, now);
 
   const [
-    user,
-    monthExtraIncomeAgg,
+    // Real income/expense/savings for the whole period (planned + extra), via the
+    // shared canonical filters — the same aggregation that computes next period's
+    // carry-in, so live balance and carry-over always agree.
+    actuals,
     monthExtraExpenseAgg,
     monthExtraSavingsAgg,
     todayExtraIncomeAgg,
     todayExtraExpenseAgg,
     todayExtraSavingsAgg,
-    monthActualExpenseAgg,
-    monthActualSavingsAgg,
-    monthActualIncomeAgg,
   ] =
     await Promise.all([
-      prisma.userProfile.findUniqueOrThrow({
-        where: { id: userId },
-        select: {
-          baselineIncome: true,
-          baselineExpense: true,
-          baselineSavings: true,
-        },
-      }),
-      prisma.transaction.aggregate({
-        where: {
-          userId,
-          kind: "EXTRA",
-          type: "INCOME",
-          occurredAt: { gte: period.startDate, lte: period.endDate },
-        },
-        _sum: { amount: true },
-      }),
+      computePeriodActuals(prisma, userId, period.startDate, actualWindowEnd),
       prisma.transaction.aggregate({
         where: {
           userId,
           kind: "EXTRA",
           type: "EXPENSE",
-          occurredAt: { gte: period.startDate, lte: period.endDate },
+          occurredAt: { gte: period.startDate, lte: actualWindowEnd },
           OR: [{ extraType: "EXTRA_EXPENSE" }, { extraType: null }],
         },
         _sum: { amount: true },
@@ -91,7 +90,7 @@ export async function getMonthlyMoneyOverview(userId: string, options?: { period
           kind: "EXTRA",
           type: "EXPENSE",
           extraType: "EXTRA_SAVINGS",
-          occurredAt: { gte: period.startDate, lte: period.endDate },
+          occurredAt: { gte: period.startDate, lte: actualWindowEnd },
         },
         _sum: { amount: true },
       }),
@@ -121,41 +120,6 @@ export async function getMonthlyMoneyOverview(userId: string, options?: { period
           type: "EXPENSE",
           extraType: "EXTRA_SAVINGS",
           occurredAt: { gte: startOfToday, lte: endOfToday },
-        },
-        _sum: { amount: true },
-      }),
-      // Real expense/savings/income for the whole period (planned + extra), so the
-      // live balance reflects what actually happened, not a calendar estimate.
-      prisma.transaction.aggregate({
-        where: {
-          userId,
-          type: "EXPENSE",
-          occurredAt: { gte: period.startDate, lte: period.endDate },
-          OR: [
-            { extraType: "EXTRA_EXPENSE" },
-            { extraType: null, category: { is: null } },
-            { extraType: null, category: { is: { kind: "expense" } } },
-          ],
-        },
-        _sum: { amount: true },
-      }),
-      prisma.transaction.aggregate({
-        where: {
-          userId,
-          type: "EXPENSE",
-          occurredAt: { gte: period.startDate, lte: period.endDate },
-          OR: [
-            { extraType: "EXTRA_SAVINGS" },
-            { extraType: null, category: { is: { kind: "savings" } } },
-          ],
-        },
-        _sum: { amount: true },
-      }),
-      prisma.transaction.aggregate({
-        where: {
-          userId,
-          type: "INCOME",
-          occurredAt: { gte: period.startDate, lte: period.endDate },
         },
         _sum: { amount: true },
       }),
@@ -170,20 +134,28 @@ export async function getMonthlyMoneyOverview(userId: string, options?: { period
   // Prorated plan consumption — kept only as an "expected by now" reference line.
   const expectedExpenseToDate = round2(dailyExpenseBudget * dayOfMonth);
   const expectedSavingsToDate = round2(dailySavingsBudget * dayOfMonth);
-  const extraIncome = toNumber(monthExtraIncomeAgg._sum.amount);
+  const extraIncome = actuals.extraIncome;
   const extraExpense = toNumber(monthExtraExpenseAgg._sum.amount);
   const extraSavings = toNumber(monthExtraSavingsAgg._sum.amount);
   const todayExtraIncome = toNumber(todayExtraIncomeAgg._sum.amount);
   const todayExtraExpense = toNumber(todayExtraExpenseAgg._sum.amount);
   const todayExtraSavings = toNumber(todayExtraSavingsAgg._sum.amount);
   // Real recorded spend/savings for the period (planned + extra).
-  const actualExpense = round2(toNumber(monthActualExpenseAgg._sum.amount));
-  const actualSavings = round2(toNumber(monthActualSavingsAgg._sum.amount));
-  const actualIncome = round2(toNumber(monthActualIncomeAgg._sum.amount));
-  // Surplus / live balance = available income minus what has actually been spent and saved.
-  const surplusRaw = round2(carryIn + baselineIncome + extraIncome - actualExpense - actualSavings);
+  const actualExpense = actuals.actualExpense;
+  const actualSavings = actuals.actualSavings;
+  const actualIncome = actuals.actualIncome;
+  // Regular (non-extra) income the user has actually recorded this period.
+  const actualRegularIncome = round2(actualIncome - extraIncome);
+  // Merge plan with reality: planned income is the reference, real recorded
+  // income supersedes it once logged (see effectiveRegularIncome). This is the
+  // same figure the dashboard uses, so live balance and dashboard net agree.
+  const activeBaselineIncome = periodActive ? baselineIncome : 0;
+  const regularIncome = effectiveRegularIncome(activeBaselineIncome, actualRegularIncome);
+  // Surplus / live balance — same shared formula that computes next period's
+  // carry-in, so what you see at period end is exactly what carries forward.
+  const surplusRaw = periodSurplus({ carryIn, baselineIncome: activeBaselineIncome, actuals });
   const surplusAvailable = round2(Math.max(0, surplusRaw));
-  const incomeTotal = round2(carryIn + baselineIncome + extraIncome);
+  const incomeTotal = round2(carryIn + regularIncome + extraIncome);
   const expenseTotal = actualExpense;
   const savingsTotal = actualSavings;
   const fullBaselineOutflow = Math.max(1, baselineExpense + baselineSavings);
@@ -196,6 +168,7 @@ export async function getMonthlyMoneyOverview(userId: string, options?: { period
 
   return {
     periodName: period.name,
+    periodActive,
     now,
     dayOfMonth,
     daysInMonth,

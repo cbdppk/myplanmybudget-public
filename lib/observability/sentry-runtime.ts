@@ -1,3 +1,4 @@
+import type { Scope } from "@sentry/nextjs";
 import { loadSentry } from "@/lib/observability/sentry-loader";
 
 export async function reportException(error: unknown) {
@@ -9,7 +10,7 @@ export async function reportException(error: unknown) {
 export async function reportCspViolation(details: Record<string, unknown>) {
   const Sentry = await loadSentry();
   if (!Sentry) return;
-  Sentry.withScope((scope) => {
+  Sentry.withScope((scope: Scope) => {
     scope.setLevel("warning");
     scope.setTag("csp.directive", String(details.effectiveDirective ?? details.violatedDirective ?? "unknown"));
     scope.setTag("csp.disposition", String(details.disposition ?? "enforce"));

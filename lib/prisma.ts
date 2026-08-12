@@ -18,6 +18,7 @@ const PROTECTED_MODELS = new Set([
   "PushSubscription",
   "AuditEvent",
   "AuthCredential",
+  "OfflineSyncOp",
 ]);
 
 const globalForPrisma = globalThis as unknown as {

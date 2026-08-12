@@ -62,33 +62,42 @@ export async function createReminderWithRecurrence(params: {
   return { ok: true, reminder, userEmail: user.email };
 }
 
+// Writes go through updateMany/deleteMany so the tenant is part of the query
+// args. The RLS extension in lib/prisma.ts resolves identity from the args
+// first and only falls back to the ambient request identity, so a `where: { id }`
+// write is the one shape in this file that can fail with DB_IDENTITY_REQUIRED.
 export async function toggleReminderDone(reminderId: string) {
   const user = await getActiveUser();
-  const reminder = await prisma.reminder.findFirst({ where: { id: reminderId, userId: user.id } });
+  const reminder = await prisma.reminder.findFirst({
+    where: { id: reminderId, userId: user.id },
+    select: { id: true, done: true },
+  });
   if (!reminder) throw new Error("Reminder not found.");
 
-  await prisma.reminder.update({
-    where: { id: reminder.id },
-    data: { done: !reminder.done },
+  const done = !reminder.done;
+  const { count } = await prisma.reminder.updateMany({
+    where: { id: reminder.id, userId: user.id },
+    data: { done },
   });
-  return { ok: true };
+  if (count === 0) throw new Error("Reminder not found.");
+  return { ok: true, done };
 }
 
 export async function setReminderDone(reminderId: string, done: boolean) {
   const user = await getActiveUser();
-  const reminder = await prisma.reminder.findFirst({ where: { id: reminderId, userId: user.id }, select: { id: true } });
-  if (!reminder) throw new Error("Reminder not found.");
-  await prisma.reminder.update({
-    where: { id: reminder.id },
+  const { count } = await prisma.reminder.updateMany({
+    where: { id: reminderId, userId: user.id },
     data: { done },
   });
+  if (count === 0) throw new Error("Reminder not found.");
   return { ok: true };
 }
 
 export async function deleteReminder(reminderId: string) {
   const user = await getActiveUser();
-  const reminder = await prisma.reminder.findFirst({ where: { id: reminderId, userId: user.id }, select: { id: true } });
-  if (!reminder) throw new Error("Reminder not found.");
-  await prisma.reminder.delete({ where: { id: reminder.id } });
+  const { count } = await prisma.reminder.deleteMany({
+    where: { id: reminderId, userId: user.id },
+  });
+  if (count === 0) throw new Error("Reminder not found.");
   return { ok: true };
 }

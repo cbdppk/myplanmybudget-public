@@ -30,11 +30,21 @@ export type LocalAssistantContext = {
   income: number;
   expenses: number;
   savings: number;
+  // Month-anchored, real-actual figures for the CURRENT budget month — these
+  // match the dashboard's Money-health card and Money-movement totals, so the
+  // assistant's "analyze my month" numbers reconcile with what the user sees.
+  monthIncome: number;
+  monthExpenses: number;
+  monthSavings: number;
+  monthNet: number;
   plannedIncome: number;
   plannedExpenses: number;
   plannedSavings: number;
   budgeted: number;
   used: number;
+  // Real budgeted-expense spend this month (distinct from `used`, which is the
+  // plan-released pace figure the dashboard bar shows).
+  actualSpent: number;
   budgetRemaining: number;
   budgetStatusPct: number;
   savingsRatePct: number;
@@ -234,8 +244,14 @@ function normalize(value: string) {
   return value.toLowerCase().replace(/[^\w\s]/g, " ").replace(/\s+/g, " ").trim();
 }
 
+// Whole-word phrase match. Since `normalize` collapses input to single-spaced
+// lowercase words, padding both sides with spaces makes `includes` match a
+// needle only on word boundaries — so "hi" no longer matches inside "this",
+// and "do"/"api" no longer match inside "does"/"rapid". Multi-word needles
+// still match as a contiguous word sequence.
 function hasAny(value: string, needles: string[]) {
-  return needles.some((needle) => value.includes(needle));
+  const padded = ` ${value} `;
+  return needles.some((needle) => padded.includes(` ${needle} `));
 }
 
 function promptMessages(ids: string[]) {
@@ -302,19 +318,28 @@ function buildFocusText(context: LocalAssistantContext) {
       return `Main fix: you can move up to ${money(goalRoom)} toward goals now if that is the current priority.`;
     }
   }
-  return `Main fix: keep actual use inside the remaining ${money(Math.max(0, context.budgetRemaining))} budget room.`;
+  const budgetLeft = Math.max(0, context.budgeted - context.actualSpent);
+  return `Main fix: keep your spending inside the ${money(budgetLeft)} of expense budget you have left this month.`;
 }
 
 function buildMonthlySummary(context: LocalAssistantContext) {
   const money = (value: number) => toMoney(value, context.currency, context.fxRate);
   const topSpend = context.topSpend
-    ? `${context.topSpend.category} is your biggest expense category at ${money(context.topSpend.spent)}.`
-    : "You do not have enough expense history yet to rank a top spend category.";
+    ? `${context.topSpend.category} is your biggest expense category so far at ${money(context.topSpend.spent)}.`
+    : "You have not logged enough expenses yet to rank a top spend category.";
+
+  // All figures are the CURRENT budget month's real actuals, matching the
+  // dashboard. Budget "used" reflects what has actually been spent, not the
+  // plan-released pace, so "remaining" is budget minus real spend.
+  const actualBudgetPct = context.budgeted > 0
+    ? Math.min(100, Math.max(0, (context.actualSpent / context.budgeted) * 100))
+    : 0;
+  const budgetLeft = Math.max(0, Math.round((context.budgeted - context.actualSpent) * 100) / 100);
 
   return [
-    `For ${context.windowLabel}, actual net cash flow is ${money(context.net)}.`,
-    `${money(context.income)} income, ${money(context.expenses)} expenses, and ${money(context.savings)} moved to savings.`,
-    `Planned expense budget used is ${context.budgetStatusPct.toFixed(0)}% with ${money(context.budgetRemaining)} remaining against ${money(context.budgeted)} planned.`,
+    `Here's your current month (${context.periodName}).`,
+    `Income ${money(context.monthIncome)}, spending ${money(context.monthExpenses)}, and ${money(context.monthSavings)} moved to savings — a net of ${money(context.monthNet)}.`,
+    `You've spent ${money(context.actualSpent)} of your ${money(context.budgeted)} expense budget (${actualBudgetPct.toFixed(0)}%), leaving ${money(budgetLeft)} to spend this month.`,
     `${topSpend} ${context.moneyGist}`,
     buildFocusText(context),
   ].join("\n\n");
@@ -345,6 +370,13 @@ export function buildOpeningReplies(_context: LocalAssistantContext): LocalAssis
       suggestions: promptMessages(["app-overview", "setup-budget", "setup-goals", "make-transaction"]),
     },
   ];
+}
+
+// Savings rate from the current month's real actuals, so it always reconciles
+// with the income/savings figures the assistant quotes alongside it.
+function monthSavingsRatePct(context: LocalAssistantContext) {
+  if (context.monthIncome <= 0) return 0;
+  return Math.round((context.monthSavings / context.monthIncome) * 1000) / 10;
 }
 
 export function resolveLocalAssistantReply(question: string, context: LocalAssistantContext): LocalAssistantReply {
@@ -538,37 +570,42 @@ export function resolveLocalAssistantReply(question: string, context: LocalAssis
   }
 
   if (hasAny(normalized, ["budget used"])) {
+    const pct = context.budgeted > 0 ? Math.min(100, Math.max(0, (context.actualSpent / context.budgeted) * 100)) : 0;
     return {
-      content: `Budget used compares logged planned expenses against your planned expense budget for this window.\n\nExtra expense reduces surplus and live balance, but it does not consume the planned budget pot. Right now you have used ${money(context.used)} of ${money(context.budgeted)}, which is ${context.budgetStatusPct.toFixed(0)}%.`,
+      content: `Budget used compares what you have actually spent on planned expenses against your expense budget for this month.\n\nSo far you have spent ${money(context.actualSpent)} of your ${money(context.budgeted)} budget (${pct.toFixed(0)}%), leaving ${money(context.budgetRemaining)}.\n\nExtra (off-budget) expense reduces your surplus and live balance, but it does not consume this budget pot.`,
       suggestions: promptMessages(["month-summary", "spend", "focus"]),
     };
   }
 
   if (hasAny(normalized, ["savings rate"])) {
     return {
-      content: `Savings rate uses your budgeted savings pace plus extra savings logged.\n\nRight now the rate is ${context.savingsRatePct.toFixed(1)}%, based on ${money(context.plannedSavings)} planned savings and ${money(context.savings)} extra savings in ${context.windowLabel}.`,
+      content: `Savings rate is how much of your income is going to savings.\n\nThis month you've moved ${money(context.monthSavings)} to savings on ${money(context.monthIncome)} income — a rate of ${monthSavingsRatePct(context).toFixed(1)}%.`,
       suggestions: promptMessages(["month-summary", "goal-room"]),
     };
   }
 
-  if (hasAny(normalized, ["analyze", "analysis", "summary", "how am i doing", "review my month", "month summary", "status"])) {
+  // More specific money questions first, so they aren't swallowed by the
+  // generic "analyze / summary / status" branch below.
+  if (hasAny(normalized, ["budget status", "budget remaining", "remaining budget", "am i on budget", "budget left"])) {
+    const pct = context.budgeted > 0 ? Math.min(100, Math.max(0, (context.actualSpent / context.budgeted) * 100)) : 0;
+    const remaining = Math.round((context.budgeted - context.actualSpent) * 100) / 100;
     return {
-      content: buildMonthlySummary(context),
-      suggestions: promptMessages(["budget-status", "spend", "focus", "goal-room"]),
+      content: `Budget status: you've spent ${money(context.actualSpent)} of your ${money(context.budgeted)} expense budget this month (${pct.toFixed(0)}%), leaving ${money(Math.max(0, remaining))}.\n\nExtra expense sits outside that budget and hits your surplus instead.`,
+      suggestions: promptMessages(["spend", "focus", "month-summary"]),
     };
   }
 
   if (hasAny(normalized, ["balance", "cash flow", "net", "available money", "live balance"])) {
     return {
-      content: `Available balance for ${context.windowLabel} is ${money(context.availableBalance)}.\n\nThat is built from actual income ${money(context.income)} minus actual expenses ${money(context.expenses)} and actual savings ${money(context.savings)}.`,
+      content: `Your net for this month is ${money(context.monthNet)}.\n\nThat is ${money(context.monthIncome)} income minus ${money(context.monthExpenses)} spending and ${money(context.monthSavings)} moved to savings.`,
       suggestions: promptMessages(["month-summary", "budget-status", "focus"]),
     };
   }
 
-  if (hasAny(normalized, ["budget status", "budget remaining", "remaining budget", "am i on budget"])) {
+  if (hasAny(normalized, ["analyze", "analysis", "summary", "how am i doing", "review my month", "month summary", "my status", "financial status"])) {
     return {
-      content: `Budget status: ${context.budgetStatusPct.toFixed(0)}% of planned expense budget used.\n\nYou have used ${money(context.used)} of ${money(context.budgeted)} planned, leaving ${money(context.budgetRemaining)} for the current window. Extra expense sits outside that budget and hits surplus instead.`,
-      suggestions: promptMessages(["spend", "focus", "month-summary"]),
+      content: buildMonthlySummary(context),
+      suggestions: promptMessages(["budget-status", "spend", "focus", "goal-room"]),
     };
   }
 
@@ -593,7 +630,7 @@ export function resolveLocalAssistantReply(question: string, context: LocalAssis
 
   if (hasAny(normalized, ["saved", "savings", "how much have i saved"])) {
     return {
-      content: `You have logged ${money(context.savings)} as extra savings in ${context.windowLabel}.\n\nCombined with your budgeted savings pace, that puts your savings rate at ${context.savingsRatePct.toFixed(1)}%.`,
+      content: `You have moved ${money(context.monthSavings)} to savings this month.\n\nOn ${money(context.monthIncome)} of income, that is a savings rate of ${monthSavingsRatePct(context).toFixed(1)}%.`,
       suggestions: promptMessages(["goal-room", "month-summary", "budget-status"]),
     };
   }

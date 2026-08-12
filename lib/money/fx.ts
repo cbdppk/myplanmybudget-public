@@ -89,9 +89,14 @@ export async function getUserFxContext(baseCurrency: string, preferredCurrency: 
   const base = baseCurrency.toUpperCase();
   const preferred = preferredCurrency.toUpperCase();
   if (base === preferred) {
-    return { baseCurrency: base, preferredCurrency: preferred, fxRate: 1, rates: { [base]: 1 } };
+    return { baseCurrency: base, preferredCurrency: preferred, fxRate: 1, rates: { [base]: 1 }, rateAvailable: true };
   }
   const rates = await getFxRateMap(base);
-  const fxRate = typeof rates[preferred] === "number" && rates[preferred] > 0 ? rates[preferred] : 1;
-  return { baseCurrency: base, preferredCurrency: preferred, fxRate, rates };
+  const rate = rates[preferred];
+  if (typeof rate === "number" && rate > 0) {
+    return { baseCurrency: base, preferredCurrency: preferred, fxRate: rate, rates, rateAvailable: true };
+  }
+  // No live rate: showing base-currency numbers under the preferred currency's
+  // symbol would be a lie. Fall back to displaying the base currency honestly.
+  return { baseCurrency: base, preferredCurrency: base, fxRate: 1, rates, rateAvailable: false };
 }

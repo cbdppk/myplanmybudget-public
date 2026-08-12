@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/auth/permissions";
 import { prismaAdmin } from "@/lib/prisma";
+import { materializeDueRecurringRules } from "@/lib/data/recurring";
 import webPush from "web-push";
 import { timingSafeEqual } from "node:crypto";
 import { checkRateLimit, getClientKey } from "@/lib/security/rate-limit";
@@ -42,7 +43,7 @@ export async function POST(request: Request) {
   next24h.setHours(next24h.getHours() + 24);
   const mode = parseMode(request);
 
-  const [subscriptions, dueReminders] = await Promise.all([
+  const [subscriptions, dueReminders, dueRecurringUsers] = await Promise.all([
     prismaAdmin.pushSubscription.findMany({
       where: { active: true },
       select: { id: true, userId: true, endpoint: true, p256dh: true, auth: true },
@@ -56,7 +57,30 @@ export async function POST(request: Request) {
       select: { id: true, userId: true, title: true, dueAt: true },
       take: 1000,
     }),
+    prismaAdmin.recurringRule.findMany({
+      where: { active: true, nextRunAt: { lte: now } },
+      select: { userId: true },
+      distinct: ["userId"],
+      take: 500,
+    }),
   ]);
+
+  // Post due recurring transactions for every affected user, so rules run even
+  // for users who don't open the app (page loads also materialize lazily).
+  let recurringPosted = 0;
+  if (mode === "live") {
+    for (const { userId } of dueRecurringUsers) {
+      try {
+        const result = await materializeDueRecurringRules(userId, now);
+        recurringPosted += result.posted;
+      } catch (error) {
+        console.warn(
+          "recurring_materialize_failed",
+          JSON.stringify({ userId, reason: error instanceof Error ? error.message : "unknown" }),
+        );
+      }
+    }
+  }
 
   const activeByUser = new Map<string, string[]>();
   for (const sub of subscriptions) {
@@ -104,6 +128,7 @@ export async function POST(request: Request) {
       mode,
       usersTargeted: dispatchPreview.length,
       reminderCount: dispatchPreview.reduce((sum, item) => sum + item.reminderCount, 0),
+      recurringUsersDue: dueRecurringUsers.length,
       dispatchPreview,
     });
   }
@@ -192,6 +217,7 @@ export async function POST(request: Request) {
     delivered,
     failed: failedSubscriptions.length,
     staleDeactivated: staleIds.length,
+    recurringPosted,
     failuresSample: failedSubscriptions.slice(0, 20).map((item) => ({
       id: item.id,
       statusCode: item.statusCode,

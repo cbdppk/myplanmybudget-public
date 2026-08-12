@@ -1,9 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
+import { getAccountsWithBalances } from "@/lib/data/accounts";
 import { ensureCurrentBudgetPeriod, getActiveUser, toNumber } from "@/lib/data/utils";
 import { hasRecentReauth } from "@/lib/auth/session";
 import { fromMonthly, normalizeToMonthly, type MoneyCadence } from "@/lib/money/frequency";
 import { isExpectedVersionMatch, parseSettingsVersion } from "@/lib/data/settings-guards";
+import { getPeriodDayMetrics } from "@/lib/finance/math";
 
 function round2(value: number) {
   return Math.round(value * 100) / 100;
@@ -72,12 +74,8 @@ export async function getSettingsData() {
   const user = await getActiveUser();
   await ensureSettingsCategories(user.id);
   const period = await ensureCurrentBudgetPeriod(user.id);
-  const [accounts, categories, targets] = await Promise.all([
-    prisma.financialAccount.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: "asc" },
-      select: { id: true, name: true, type: true, balance: true },
-    }),
+  const [accountsWithBalances, categories, targets] = await Promise.all([
+    getAccountsWithBalances(user.id),
     prisma.category.findMany({
       where: { userId: user.id },
       orderBy: { name: "asc" },
@@ -88,14 +86,14 @@ export async function getSettingsData() {
       select: { categoryId: true, amount: true, cadence: true },
     }),
   ]);
+  const accounts = accountsWithBalances.accounts;
 
   const targetMap = new Map(targets.map((item) => [item.categoryId, { amount: toNumber(item.amount), cadence: (item.cadence as MoneyCadence) ?? "MONTHLY" }]));
   const visibleCategories = categories.filter((item) => {
     if (item.name.startsWith("Archived:")) return false;
     return !HIDDEN_CATEGORY_NAMES.has(item.name.trim().toLowerCase());
   });
-  const now = new Date();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const daysInMonth = getPeriodDayMetrics(period.startDate, period.endDate, new Date(), user.timezone).totalDays;
   const budgetCategories = visibleCategories
     .filter((item) => item.kind === "expense" || item.kind === "savings")
     .map((item) => ({
@@ -110,9 +108,11 @@ export async function getSettingsData() {
   return {
     user,
     accounts,
+    netWorth: accountsWithBalances.netWorth,
     categories: visibleCategories,
     budget: {
       periodName: period.name,
+      daysInPeriod: daysInMonth,
       baselineIncome: toNumber(user.baselineIncome),
       baselineExpense: toNumber(user.baselineExpense),
       baselineSavings: toNumber(user.baselineSavings),
@@ -173,14 +173,18 @@ export async function updateSecurityPreferences(params: { notifyEmail: boolean }
 
 export async function createAccount(params: { name: string; type: string; balance: number }) {
   const user = await getActiveUser();
+  // The entered amount is the opening balance; the live balance is always
+  // computed as openingBalance + linked transactions (see getAccountsWithBalances).
   await prisma.financialAccount.create({
     data: {
       userId: user.id,
       name: params.name,
       type: params.type,
       balance: params.balance,
+      openingBalance: params.balance,
     },
   });
+  await logSettingsAudit(user.id, "settings.account.created", { name: params.name, type: params.type, openingBalance: params.balance });
   return { ok: true };
 }
 
@@ -258,7 +262,15 @@ export async function updateBudgetPreferences(params: {
     dailyEstimateAuto: user.dailyEstimateAuto,
     dailySpendEstimate: toNumber(user.dailySpendEstimate),
   };
-  const monthStartDay = Math.min(28, Math.max(1, new Date().getDate()));
+  // Preserve the existing budget-month anchor: shifting it on every settings
+  // save would re-bucket transactions and corrupt carry-over history. It is
+  // only anchored to "today" for accounts that have no budget period yet.
+  const hasExistingPeriod = Boolean(
+    await prisma.budgetPeriod.findFirst({ where: { userId: user.id }, select: { id: true } })
+  );
+  const monthStartDay = hasExistingPeriod
+    ? user.monthStartDay
+    : Math.min(28, Math.max(1, new Date().getDate()));
   const dailySpendEstimate = Math.max(0, round2(params.dailySpendEstimate));
   const preferredCurrency = params.preferredCurrency.toUpperCase();
   const updated = await prisma.$transaction(async (tx) => {
@@ -404,8 +416,7 @@ export async function updateBudgetPlan(params: {
   const user = await getActiveUser();
   const expectedUpdatedAt = parseSettingsVersion(params.expectedUpdatedAt);
   const period = await ensureCurrentBudgetPeriod(user.id);
-  const now = new Date();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const daysInMonth = getPeriodDayMetrics(period.startDate, period.endDate, new Date(), user.timezone).totalDays;
 
   const baselineIncome = Math.max(0, round2(params.baselineIncome));
   const baselineExpense = Math.max(0, round2(params.baselineExpense));

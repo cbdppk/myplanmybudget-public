@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { ensureCurrentBudgetPeriod, getActiveUser, toNumber } from "@/lib/data/utils";
 import { normalizeToMonthly, type MoneyCadence } from "@/lib/money/frequency";
+import { getPeriodDayMetrics } from "@/lib/finance/math";
 
 function round2(value: number) {
   return Math.round(value * 100) / 100;
@@ -46,11 +47,7 @@ export async function completeOnboarding(params: {
 }) {
   const user = await getActiveUser();
   const now = new Date();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
   const autoMonthStartDay = Math.min(28, Math.max(1, now.getDate()));
-  const baselineIncome = normalizeToMonthly(params.incomeAmount, params.incomeFrequency, daysInMonth);
-  const baselineExpense = normalizeToMonthly(params.expenseAmount, params.incomeFrequency, daysInMonth);
-  const baselineSavings = normalizeToMonthly(params.savingsAmount, params.incomeFrequency, daysInMonth);
 
   const existingAccount = await prisma.financialAccount.findFirst({
     where: { userId: user.id, name: params.accountName },
@@ -67,6 +64,10 @@ export async function completeOnboarding(params: {
     monthStartDay: autoMonthStartDay,
     startMode: params.budgetStartMode,
   });
+  const daysInMonth = getPeriodDayMetrics(period.startDate, period.endDate, now, user.timezone).totalDays;
+  const baselineIncome = normalizeToMonthly(params.incomeAmount, params.incomeFrequency, daysInMonth);
+  const baselineExpense = normalizeToMonthly(params.expenseAmount, params.incomeFrequency, daysInMonth);
+  const baselineSavings = normalizeToMonthly(params.savingsAmount, params.incomeFrequency, daysInMonth);
 
   const ensuredExpenseCategoryIds: string[] = [];
   for (const categoryName of params.expenseCategories) {

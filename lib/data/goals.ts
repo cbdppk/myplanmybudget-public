@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getMonthlyMoneyOverview } from "@/lib/data/money-overview";
 import { getActiveUser, toNumber } from "@/lib/data/utils";
 import { getDisplayCurrencyContext } from "@/lib/data/currency";
+import { createQuickTransaction } from "@/lib/data/transactions";
 import { logAudit } from "@/lib/data/audit";
 
 function monthsUntil(date: Date | null) {
@@ -195,10 +196,23 @@ export async function addGoalSavings(params: { goalId: string; amount: number })
   const user = await getActiveUser();
   const amount = Math.max(0, params.amount);
   if (amount <= 0) return { ok: true };
-  await prisma.goal.updateMany({
+  const goal = await prisma.goal.findFirst({
     where: { id: params.goalId, userId: user.id },
-    data: { current: { increment: amount } },
+    select: { id: true, name: true },
   });
+  if (!goal) throw new Error("Goal not found.");
+  // Funding a goal is real money leaving the spendable balance, so it's
+  // recorded as a savings transaction against the goal's synced category —
+  // the create path moves goal.current forward from the ledger.
+  await createQuickTransaction({
+    kind: "EXTRA",
+    type: "SAVINGS",
+    extraType: "EXTRA_SAVINGS",
+    amount,
+    category: goal.name,
+    memo: `Saved to goal: ${goal.name}`,
+  });
+  logAudit(user.id, "goal_add_savings", { goalId: goal.id, amount });
   return { ok: true };
 }
 

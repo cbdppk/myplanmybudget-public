@@ -16,7 +16,7 @@ export async function sendEmail(payload: EmailPayload): Promise<{ sent: boolean;
   const host = process.env.SMTP_HOST?.trim();
   const user = process.env.SMTP_USER?.trim();
   const pass = process.env.SMTP_PASS?.trim();
-  const from = process.env.SMTP_FROM?.trim() ?? `noreply@example.com`;
+  const from = process.env.SMTP_FROM?.trim() ?? `noreply@myplanmybudget.app`;
   const port = Number(process.env.SMTP_PORT ?? 587);
 
   if (!host || !user || !pass) {

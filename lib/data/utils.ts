@@ -1,8 +1,10 @@
 import { getSessionUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { getRequestCache, setDbIdentity, setRequestCache } from "@/lib/security/db-context";
+import { monthWindowFromStartDayInTz, safeTimeZone } from "@/lib/dates";
+import { computePeriodActuals, periodSurplus } from "@/lib/data/txn-filters";
 
-const DEMO_EMAIL = "demo@example.com";
+const DEMO_EMAIL = "demo@myplanmybudget.app";
 const ALLOW_DEMO = process.env.ALLOW_DEMO_ACCOUNT === "true";
 
 export function toNumber(value: unknown): number {
@@ -91,17 +93,6 @@ export function monthBounds(ref = new Date()) {
   return { start, end };
 }
 
-function monthWindowFromStartDay(ref: Date, startDay: number) {
-  const safeStartDay = Math.min(28, Math.max(1, Math.floor(startDay)));
-  const y = ref.getFullYear();
-  const m = ref.getMonth();
-  const d = ref.getDate();
-  const start = d >= safeStartDay ? new Date(y, m, safeStartDay) : new Date(y, m - 1, safeStartDay);
-  const end = new Date(start.getFullYear(), start.getMonth() + 1, safeStartDay, 0, 0, 0, 0);
-  end.setMilliseconds(-1);
-  return { start, end };
-}
-
 export async function ensureCurrentBudgetPeriod(
   userId: string,
   options?: { monthStartDay?: number; startMode?: "CURRENT_MONTH" | "NEXT_MONTH" }
@@ -112,21 +103,47 @@ export async function ensureCurrentBudgetPeriod(
 
   const user = await prisma.userProfile.findUnique({
     where: { id: userId },
-    select: { monthStartDay: true, budgetStartMode: true },
+    select: { monthStartDay: true, budgetStartMode: true, timezone: true },
   });
   const startDay = options?.monthStartDay ?? user?.monthStartDay ?? 1;
   const startMode = options?.startMode ?? ((user?.budgetStartMode as "CURRENT_MONTH" | "NEXT_MONTH" | null) ?? "CURRENT_MONTH");
-  const existingAny = await prisma.budgetPeriod.findFirst({ where: { userId }, select: { id: true } });
-  const ref = new Date();
+  const timeZone = safeTimeZone(user?.timezone);
+  const now = new Date();
+  const existingCurrent = await prisma.budgetPeriod.findFirst({
+    where: { userId, startDate: { lte: now }, endDate: { gte: now } },
+    orderBy: { startDate: "desc" },
+  });
+  if (existingCurrent) {
+    setRequestCache(cacheKey, existingCurrent);
+    return existingCurrent;
+  }
+
+  const existingAny = await prisma.budgetPeriod.findFirst({
+    where: { userId },
+    orderBy: { startDate: "asc" },
+  });
+  // A first-time "start next month" plan is scheduled, not active. Keep
+  // returning that future period until its start arrives instead of creating a
+  // second current-period budget on the next page load.
+  if (existingAny && existingAny.startDate > now) {
+    setRequestCache(cacheKey, existingAny);
+    return existingAny;
+  }
+
+  const ref = new Date(now);
   if (!existingAny && startMode === "NEXT_MONTH") {
     ref.setMonth(ref.getMonth() + 1);
   }
-  const { start, end } = monthWindowFromStartDay(ref, startDay);
-  const name = `${start.toLocaleString("en-US", { month: "short", day: "numeric" })} - ${end.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+  const { start, end } = monthWindowFromStartDayInTz(ref, startDay, timeZone);
+  const name = `${start.toLocaleString("en-US", { month: "short", day: "numeric", timeZone })} - ${end.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone })}`;
 
-  const existing = await prisma.budgetPeriod.findFirst({ where: { userId, startDate: start } });
+  // For a first-time NEXT_MONTH setup, reuse the shifted period if a concurrent
+  // request already created it.
+  const existing = await prisma.budgetPeriod.findFirst({
+    where: { userId, startDate: { lte: ref }, endDate: { gte: ref } },
+    orderBy: { startDate: "desc" },
+  });
   if (existing) {
-    // Period boundaries are deterministic from month start settings; no per-request rewrite needed.
     setRequestCache(cacheKey, existing);
     return existing;
   }
@@ -142,31 +159,27 @@ export async function ensureCurrentBudgetPeriod(
     let previousTargets: Array<{ categoryId: string; amount: number; cadence: string }> = [];
 
     if (previous) {
-      const [profile, incomeAgg, expenseAgg, targets] = await Promise.all([
+      const [profile, actuals, targets] = await Promise.all([
         tx.userProfile.findUnique({
           where: { id: userId },
-          select: { baselineIncome: true, baselineExpense: true, baselineSavings: true },
+          select: { baselineIncome: true },
         }),
-        tx.transaction.aggregate({
-          where: { userId, type: "INCOME", occurredAt: { gte: previous.startDate, lte: previous.endDate } },
-          _sum: { amount: true },
-        }),
-        tx.transaction.aggregate({
-          where: { userId, type: "EXPENSE", occurredAt: { gte: previous.startDate, lte: previous.endDate } },
-          _sum: { amount: true },
-        }),
+        computePeriodActuals(tx, userId, previous.startDate, previous.endDate),
         tx.budgetTarget.findMany({
           where: { userId, periodId: previous.id },
           select: { categoryId: true, amount: true, cadence: true },
         }),
       ]);
 
-      const baselineNet =
-        toNumber(profile?.baselineIncome) -
-        toNumber(profile?.baselineExpense) -
-        toNumber(profile?.baselineSavings);
-      const transactionNet = toNumber(incomeAgg._sum.amount) - toNumber(expenseAgg._sum.amount);
-      carryIn = toNumber(previous.carryIn) + baselineNet + transactionNet;
+      // Carry forward exactly the live balance the user saw at period end —
+      // plan merged with reality once (via periodSurplus), never both stacked.
+      // The old baselineNet + transactionNet formula double-counted money for
+      // anyone who actually logged their income and spending.
+      carryIn = periodSurplus({
+        carryIn: toNumber(previous.carryIn),
+        baselineIncome: toNumber(profile?.baselineIncome),
+        actuals,
+      });
       previousTargets = targets.map((item) => ({
         categoryId: item.categoryId,
         amount: toNumber(item.amount),

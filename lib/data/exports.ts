@@ -27,7 +27,12 @@ export async function getExportBundle(userId: string) {
     }),
     prisma.transaction.findMany({
       where: { userId },
-      include: { category: { select: { id: true, name: true } } },
+      include: {
+        category: { select: { id: true, name: true } },
+        account: { select: { id: true, name: true } },
+        fromAccount: { select: { id: true, name: true } },
+        toAccount: { select: { id: true, name: true } },
+      },
       orderBy: { occurredAt: "desc" },
     }),
     prisma.note.findMany({
@@ -69,9 +74,13 @@ export async function getExportBundle(userId: string) {
       id: item.id,
       type: item.type,
       amount: toNumber(item.amount),
+      currency: item.currency,
       occurredAt: item.occurredAt,
       memo: item.memo,
       category: item.category,
+      account: item.account,
+      fromAccount: item.fromAccount,
+      toAccount: item.toAccount,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
     })),

@@ -10,7 +10,7 @@ import { setDbIdentity } from "@/lib/security/db-context";
 import { verifyTotpCode } from "@/lib/data/totp";
 import { verifyTurnstile } from "@/lib/security/turnstile";
 import { isAccountLockedOut, recordFailedLogin, clearFailedLogins } from "@/lib/security/login-guard";
-import { useBackupCode as consumeBackupCode } from "@/lib/data/totp";
+import { useBackupCode } from "@/lib/data/totp";
 
 function cleanEnv(value?: string | null) {
   if (!value) return "";
@@ -84,7 +84,7 @@ const providers: NextAuthConfig["providers"] = [
         }
         const totpOk = verifyTotpCode(profile.totpSecret, code);
         if (!totpOk) {
-          const backupOk = await consumeBackupCode(profile.id, code);
+          const backupOk = await useBackupCode(profile.id, code);
           if (!backupOk) {
             await recordFailedLogin(email);
             return null;
