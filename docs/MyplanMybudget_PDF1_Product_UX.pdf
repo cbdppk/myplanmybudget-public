@@ -1,0 +1,147 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+2 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+3 0 obj
+<< /Length 2827 >>
+stream
+BT /F2 20 Tf 1 0 0 1 54 732 Tm (MyplanMybudget Product & UX Specification) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 713 Tm (Version: 0.2) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 698 Tm (Updated: 2026-02-20) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 683 Tm (Role: PDF1-PRODUCT) Tj ET
+BT /F2 13 Tf 1 0 0 1 54 660 Tm (1. Product Vision) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 643 Tm (MyplanMybudget is a click-first budgeting web app for users who want fast planning and safe,) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 628 Tm (predictable money workflows.) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 607 Tm (Core promises:) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 592 Tm (- Simple: guided setup with templates and fast forms.) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 577 Tm (- Visual: dashboard charts for cashflow and trend review.) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 562 Tm (- Safe-feeling: explicit export controls and destructive-action confirmation.) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 547 Tm (- Sandbox-first: scenario simulation before applying changes.) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 526 Tm (Non-goals for this version:) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 511 Tm (- Bank account linking.) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 496 Tm (- Investment/trading workflows.) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 481 Tm (- Double-entry accounting complexity.) Tj ET
+BT /F2 13 Tf 1 0 0 1 54 458 Tm (2. Target Users) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 441 Tm (- Starter Saver: wants a guided first budget.) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 426 Tm (- Busy Worker: needs quick capture and clear monthly summary.) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 411 Tm (- Planner Nerd: wants simulation controls and comparison-ready outputs.) Tj ET
+BT /F2 13 Tf 1 0 0 1 54 388 Tm (3. Information Architecture) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 371 Tm (Primary navigation:) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 356 Tm (- Dashboard) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 341 Tm (- Budgets) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 326 Tm (- Transactions) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 311 Tm (- Simulations) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 296 Tm (- Notes) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 281 Tm (- Settings) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 260 Tm (Global actions:) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 245 Tm (- Add expense) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 230 Tm (- Add income) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 215 Tm (- Add note) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 200 Tm (- New simulation) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 185 Tm (- Export) Tj ET
+BT /F2 13 Tf 1 0 0 1 54 162 Tm (4. Core User Flows) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 145 Tm (Auth:) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 130 Tm (- Email/password signup and login.) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 115 Tm (- Signed cookie session.) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 94 Tm (Onboarding wizard:) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 79 Tm (- Step 1: currency and cycle start.) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 64 Tm (- Step 2: template selection.) Tj ET
+BT /F1 9 Tf 1 0 0 1 522 32 Tm (Page 1) Tj ET
+endstream
+endobj
+4 0 obj
+<< /Type /Page /Parent 9 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R /F2 2 0 R >> >> /Contents 3 0 R >>
+endobj
+5 0 obj
+<< /Length 3146 >>
+stream
+BT /F1 11 Tf 1 0 0 1 54 736 Tm (- Step 3: categories and optional goal.) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 715 Tm (Daily capture:) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 700 Tm (- Add expense with amount, category, memo, date.) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 685 Tm (- Optional recurring rule creation.) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 664 Tm (Monthly review:) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 649 Tm (- End-of-month review CTA from dashboard.) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 628 Tm (Simulation flow:) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 613 Tm (- Start from baseline income/expense.) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 598 Tm (- Tune sliders for assumptions.) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 583 Tm (- Save/compare/apply with explicit confirmation.) Tj ET
+BT /F2 13 Tf 1 0 0 1 54 560 Tm (5. Screen Inventory Status) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 543 Tm (Implemented now:) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 528 Tm (- Auth page with login/signup tabs.) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 513 Tm (- Onboarding wizard.) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 498 Tm (- Dashboard with dynamic cards, trend chart, recent activity.) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 483 Tm (- Budgets with editable category limits and progress bars.) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 468 Tm (- Transactions with add form, filters UI, recent log.) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 453 Tm (- Simulation sandbox with sliders and line chart.) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 438 Tm (- Notes and reminders board.) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 423 Tm (- Settings with re-auth gate and export links.) Tj ET
+BT /F2 13 Tf 1 0 0 1 54 400 Tm (6. Security and Trust Rules) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 383 Tm (- Protected routes via middleware.) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 368 Tm (- Server-side auth checks for data reads/writes.) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 353 Tm (- Re-auth requirement for export APIs.) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 338 Tm (- Explicit danger zone actions in settings.) Tj ET
+BT /F2 13 Tf 1 0 0 1 54 315 Tm (7. Accessibility and UX Rules) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 298 Tm (- Keyboard-accessible forms and controls.) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 283 Tm (- Primary action visible on every key page.) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 268 Tm (- Empty states prompt immediate next action.) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 253 Tm (- Post-save hints guide the next step.) Tj ET
+BT /F2 13 Tf 1 0 0 1 54 230 Tm (8. Design Tokens \(Current\)) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 213 Tm (- Primary: #111827) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 198 Tm (- Accent: #2563eb) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 183 Tm (- Success: #16a34a) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 168 Tm (- Warning: #f59e0b) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 153 Tm (- Danger: #dc2626) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 138 Tm (- Radius: 2xl) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 123 Tm (- Spacing scale: 8 / 12 / 16 / 24) Tj ET
+BT /F2 13 Tf 1 0 0 1 54 100 Tm (9. Known Runtime Note \(Current Environment\)) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 83 Tm (In this offline environment, Prisma engine downloads are unavailable. A local) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 68 Tm (Prisma-compatible shim is used for runtime continuity and demo flow validation.) Tj ET
+BT /F1 9 Tf 1 0 0 1 522 32 Tm (Page 2) Tj ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 9 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R /F2 2 0 R >> >> /Contents 5 0 R >>
+endobj
+7 0 obj
+<< /Length 630 >>
+stream
+BT /F2 13 Tf 1 0 0 1 54 736 Tm (10. Definition of Done for PDF1-PRODUCT) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 719 Tm (Done when:) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 704 Tm (- All core screens exist and are navigable.) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 689 Tm (- Auth + protected routes are enforced.) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 674 Tm (- Dashboard, transactions, notes, reminders, and simulations are data-backed.) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 659 Tm (- Export and re-auth controls are present.) Tj ET
+BT /F1 11 Tf 1 0 0 1 54 644 Tm (- Product spec is regenerated from this markdown source.) Tj ET
+BT /F1 9 Tf 1 0 0 1 522 32 Tm (Page 3) Tj ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 9 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R /F2 2 0 R >> >> /Contents 7 0 R >>
+endobj
+9 0 obj
+<< /Type /Pages /Count 3 /Kids [ 4 0 R 6 0 R 8 0 R ] >>
+endobj
+10 0 obj
+<< /Type /Catalog /Pages 9 0 R >>
+endobj
+xref
+0 11
+0000000000 65535 f 
+0000000009 00000 n 
+0000000079 00000 n 
+0000000154 00000 n 
+0000003033 00000 n 
+0000003169 00000 n 
+0000006367 00000 n 
+0000006503 00000 n 
+0000007184 00000 n 
+0000007320 00000 n 
+0000007391 00000 n 
+trailer
+<< /Size 11 /Root 10 0 R >>
+startxref
+7441
+%%EOF

@@ -1,12 +1,28 @@
 import { randomBytes, scryptSync } from "node:crypto";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { ContactInquiryStatus, ExtraTxnType, PrismaClient, ReminderChannel, TransactionKind, TxnType, UserRole } from "@prisma/client";
 
-const prisma = new PrismaClient();
+function requiredSeedEnv(name: string): string {
+  const value = process.env[name]?.trim();
+  if (!value) {
+    throw new Error(`Missing required seed environment variable: ${name}`);
+  }
+  return value;
+}
 
-const ADMIN_EMAIL = "admin@example.com";
-const ADMIN_PASSWORD = "DemoAdminPassword123!";
-const USER_EMAIL = "user@example.com";
-const USER_PASSWORD = "DemoUserPassword123!";
+const ADMIN_EMAIL = requiredSeedEnv("SEED_ADMIN_EMAIL");
+const ADMIN_PASSWORD = requiredSeedEnv("SEED_ADMIN_PASSWORD");
+const USER_EMAIL = requiredSeedEnv("SEED_USER_EMAIL");
+const USER_PASSWORD = requiredSeedEnv("SEED_USER_PASSWORD");
+const connectionString = process.env.DIRECT_URL?.trim() || process.env.DATABASE_URL?.trim();
+
+if (!connectionString) {
+  throw new Error("Missing required database environment variable: DIRECT_URL or DATABASE_URL");
+}
+
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({ connectionString }),
+});
 
 function hashPassword(password: string): string {
   const salt = randomBytes(16).toString("hex");
@@ -26,7 +42,7 @@ async function main() {
   const admin = await prisma.userProfile.create({
     data: {
       email: ADMIN_EMAIL,
-      name: "Demo Admin",
+      name: "EyeHai Admin",
       currency: "USD",
       role: UserRole.ADMIN,
       isActive: true,
@@ -36,7 +52,7 @@ async function main() {
   const user = await prisma.userProfile.create({
     data: {
       email: USER_EMAIL,
-      name: "Demo User",
+      name: "Power Test User",
       currency: "USD",
       baseCurrency: "USD",
       preferredCurrency: "USD",
@@ -272,7 +288,7 @@ async function main() {
 
   const inquiry = await prisma.contactInquiry.create({
     data: {
-      name: "Demo Prospect",
+      name: "Prospect Client",
       email: "prospect@example.com",
       subject: "Need onboarding support",
       message: "We are evaluating MyplanMybudget for team budgeting and want a guided demo.",
@@ -281,7 +297,7 @@ async function main() {
 
   await prisma.contactInquiry.create({
     data: {
-      name: "Demo Customer",
+      name: "Existing Customer",
       email: "customer@example.com",
       subject: "Data export question",
       message: "Need help understanding JSON export fields.",
@@ -300,8 +316,8 @@ async function main() {
   });
 
   console.log("Seed complete:");
-  console.log(`- Admin: ${ADMIN_EMAIL} / ${ADMIN_PASSWORD}`);
-  console.log(`- User:  ${USER_EMAIL} / ${USER_PASSWORD}`);
+  console.log(`- Admin: ${ADMIN_EMAIL}`);
+  console.log(`- User:  ${USER_EMAIL}`);
   console.log("- Data seeded for budgets, transactions, simulations, reminders, notes, push, and contact inbox.");
 }
 

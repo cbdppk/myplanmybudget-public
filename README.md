@@ -29,6 +29,11 @@ Optional push dispatch vars:
 Optional admin bootstrap var:
 - `ADMIN_EMAILS` = comma-separated emails that should be auto-promoted to admin on signup/login
 
+Required for `pnpm prisma:seed`:
+- `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` = local seeded administrator credentials
+- `SEED_USER_EMAIL` and `SEED_USER_PASSWORD` = local seeded user credentials
+- Keep these values in your untracked `.env`; the seed command never prints passwords.
+
 Optional DB identity strictness var:
 - `DB_IDENTITY_STRICT` = `true` to force per-query strict DB identity/RLS wiring. When `DATABASE_URL` uses an RLS runtime user (for example `app_runtime_user`), strict mode is auto-forced even in local dev.
 
