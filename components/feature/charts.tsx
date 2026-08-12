@@ -85,6 +85,8 @@ export function MiniBarChart({
 export function MiniLineChart({
   values,
   secondValues,
+  plannedValues,
+  plannedLabel = "Plan",
   minValue,
   maxValue,
   xLabels,
@@ -95,6 +97,9 @@ export function MiniLineChart({
 }: {
   values: number[];
   secondValues?: number[];
+  /** Optional reference series (e.g. expected spend/day) drawn as a dashed line. */
+  plannedValues?: number[];
+  plannedLabel?: string;
   minValue?: number;
   maxValue?: number;
   xLabels?: string[];
@@ -112,7 +117,7 @@ export function MiniLineChart({
   const CW = W - ML - MR;
   const CH = H - MT - MB;
 
-  const allValues = secondValues ? [...values, ...secondValues] : values;
+  const allValues = [...values, ...(secondValues ?? []), ...(plannedValues ?? [])];
   const baseMin = minValue ?? Math.min(...allValues, 0);
   const baseMax = maxValue ?? Math.max(...allValues, 1);
   const baseRange = Math.max(1, baseMax - baseMin);
@@ -128,6 +133,7 @@ export function MiniLineChart({
   // Build SVG polyline point strings
   const points1 = values.map((v, i) => `${toX(i)},${toY(v)}`).join(" ");
   const points2 = (secondValues ?? []).map((v, i) => `${toX(i)},${toY(v)}`).join(" ");
+  const pointsPlanned = (plannedValues ?? []).map((v, i) => `${toX(i)},${toY(v)}`).join(" ");
 
   // Area fill under primary line
   const area1 =
@@ -137,14 +143,20 @@ export function MiniLineChart({
 
   const [hovered, setHovered] = useState<number | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
   const touchClearRef = useRef<number | null>(null);
 
   const resolveIndex = useCallback(
     (clientX: number): number => {
-      const el = wrapRef.current;
+      // Measure against the SVG's own box, not the wrapper. With
+      // preserveAspectRatio="none" the viewBox maps linearly onto that box, so
+      // this lands on the data point directly under the pointer (the old code
+      // measured the wrapper and assumed the SVG filled it, which it didn't —
+      // taps landed on the wrong point).
+      const el = svgRef.current ?? wrapRef.current;
       if (!el) return 0;
       const rect = el.getBoundingClientRect();
-      // Map clientX to SVG coordinate space
+      if (rect.width <= 0) return 0;
       const relX = ((clientX - rect.left) / rect.width) * W;
       const raw = Math.round(((relX - ML) / CW) * (values.length - 1));
       return Math.max(0, Math.min(values.length - 1, raw));
@@ -189,8 +201,10 @@ export function MiniLineChart({
         style={{ touchAction: "pan-y" }}
       >
         <svg
+          ref={svgRef}
           viewBox={`0 0 ${W} ${H}`}
-          className="h-64 w-full rounded-2xl bg-[var(--surface)]"
+          preserveAspectRatio="xMidYMid meet"
+          className="aspect-[440/260] h-auto w-full rounded-2xl bg-[var(--surface)]"
           role="img"
           aria-label={title ?? "Line chart"}
           style={{ display: "block" }}
@@ -225,6 +239,20 @@ export function MiniLineChart({
 
           {/* Area fills */}
           {area1 ? <polygon points={area1} fill="url(#area1-fill)" className="chart-area-animate" /> : null}
+
+          {/* Plan reference line — dashed, behind the real series */}
+          {plannedValues && plannedValues.length > 0 ? (
+            <polyline
+              points={pointsPlanned}
+              fill="none"
+              stroke="#8b5cf6"
+              strokeWidth="2"
+              strokeDasharray="5 4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              opacity="0.75"
+            />
+          ) : null}
 
           {/* Lines */}
           <polyline
@@ -320,6 +348,11 @@ export function MiniLineChart({
                 {legend?.[1] ?? "2nd"}: {secondValues[tooltipIdx].toLocaleString(undefined, { maximumFractionDigits: 2 })}
               </p>
             ) : null}
+            {plannedValues?.[tooltipIdx] !== undefined ? (
+              <p className="mt-0.5 font-semibold text-violet-500">
+                {plannedLabel}: {plannedValues[tooltipIdx].toLocaleString(undefined, { maximumFractionDigits: 2 })}
+              </p>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -335,6 +368,12 @@ export function MiniLineChart({
             <span className="flex items-center gap-1.5 text-[11px] text-[color:var(--text-secondary)]">
               <span className="inline-block h-2 w-5 rounded-full bg-orange-500" />
               {legend[1]}
+            </span>
+          ) : null}
+          {plannedValues && plannedValues.length > 0 ? (
+            <span className="flex items-center gap-1.5 text-[11px] text-[color:var(--text-secondary)]">
+              <span className="inline-block h-0.5 w-5 rounded-full border-t-2 border-dashed border-violet-500" />
+              {plannedLabel}
             </span>
           ) : null}
         </div>

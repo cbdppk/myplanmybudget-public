@@ -63,7 +63,10 @@ export function SettingsNav() {
                 }`}
               >
                 {item.label}
-                {loading && <Loader2 className="h-3 w-3 animate-spin text-sky-500" />}
+                <Loader2
+                  aria-hidden="true"
+                  className={`h-3 w-3 shrink-0 animate-spin text-sky-500 ${loading ? "" : "invisible"}`}
+                />
               </button>
             </li>
           );

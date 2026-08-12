@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 const EFFECTIVE_DATE = "1 March 2025";
 const COMPANY = "EyeHai Technologies";
 const PRODUCT = "MyplanMybudget";
-const CONTACT_EMAIL = "privacy@example.com";
+const CONTACT_EMAIL = "privacy@myplanmybudget.app";
 
 function Section({ title, id, children }: { title: string; id: string; children: React.ReactNode }) {
   return (
@@ -151,7 +151,7 @@ export default function PrivacyPage() {
 
           <Section id="cookies" title="7. Cookies & Local Storage">
             <p><strong>Session cookie:</strong> We set one essential cookie — an encrypted session token that keeps you signed in. This cookie is HttpOnly and Secure. It is strictly necessary for the service to function and cannot be disabled while you are using the application.</p>
-            <p><strong>Local storage:</strong> We use your browser's localStorage to remember small preferences such as your cookie consent choice and UI state (e.g., sidebar open/closed). This data never leaves your device.</p>
+            <p><strong>Local storage:</strong> We use your browser&apos;s localStorage to remember small preferences such as your cookie consent choice and UI state (e.g., sidebar open/closed). This data never leaves your device.</p>
             <p><strong>No tracking cookies:</strong> We do not use any third-party advertising, analytics, or tracking cookies. There are no Google Analytics, Facebook Pixel, or similar third-party scripts embedded in the service.</p>
             <p><strong>Cookie consent:</strong> On your first visit you will be shown a cookie notice. Accepting it acknowledges the use of the essential session cookie described above. Declining means we will not set any non-essential cookies (though the session cookie remains necessary if you log in).</p>
           </Section>
@@ -160,7 +160,7 @@ export default function PrivacyPage() {
             <p>The following third-party services may be used to operate {PRODUCT}:</p>
             <ul className="ml-4 list-disc space-y-1.5">
               <li><strong>Database hosting:</strong> Your data is stored with a managed PostgreSQL provider under a data processing agreement.</li>
-              <li><strong>Google OAuth (optional):</strong> If you sign in with Google, you are subject to Google's Privacy Policy in addition to ours.</li>
+              <li><strong>Google OAuth (optional):</strong> If you sign in with Google, you are subject to Google&apos;s Privacy Policy in addition to ours.</li>
               <li><strong>Error monitoring:</strong> We may use an error tracking service to capture application errors. Error reports are anonymised and do not include your financial data.</li>
             </ul>
             <p>We review our sub-processors regularly and will update this section if that list changes.</p>

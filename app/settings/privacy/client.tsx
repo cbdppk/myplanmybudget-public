@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { updatePrivacySettings } from "../actions";
+import { importTransactionsFromCsv, updatePrivacySettings } from "../actions";
 
 export function PrivacySettingsForm({ analyticsOptIn, tipsOptIn }: { analyticsOptIn: boolean; tipsOptIn: boolean }) {
   const router = useRouter();
@@ -12,6 +12,9 @@ export function PrivacySettingsForm({ analyticsOptIn, tipsOptIn }: { analyticsOp
   const [tips, setTips] = useState(tipsOptIn);
   const [pending, start] = useTransition();
   const [exportPending, setExportPending] = useState(false);
+  const [importPending, setImportPending] = useState(false);
+  const [importSummary, setImportSummary] = useState<string | null>(null);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     setAnalytics(analyticsOptIn);
@@ -22,6 +25,33 @@ export function PrivacySettingsForm({ analyticsOptIn, tipsOptIn }: { analyticsOp
   }, [tipsOptIn]);
 
   const hasChanges = analytics !== analyticsOptIn || tips !== tipsOptIn;
+
+  const importCsvFile = async (file: File) => {
+    setImportPending(true);
+    setImportSummary(null);
+    try {
+      const text = await file.text();
+      const result = await importTransactionsFromCsv({ csv: text });
+      const parts = [`${result.imported} imported`];
+      if (result.skipped > 0) parts.push(`${result.skipped} already imported`);
+      if (result.errors.length > 0) parts.push(`${result.errors.length} row(s) had problems`);
+      const summary = parts.join(", ") + ".";
+      setImportSummary(
+        result.errors.length > 0
+          ? `${summary} First issue (line ${result.errors[0].line}): ${result.errors[0].reason}`
+          : summary
+      );
+      if (result.imported > 0) toast.success(`Imported ${result.imported} transaction(s).`);
+      else if (result.skipped > 0) toast.info("Everything in this file was already imported.");
+      else toast.error("No rows could be imported — check the file format.");
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Import failed.");
+    } finally {
+      setImportPending(false);
+      if (importInputRef.current) importInputRef.current.value = "";
+    }
+  };
 
   const downloadExport = async (format: "csv" | "json") => {
     setExportPending(true);
@@ -67,6 +97,35 @@ export function PrivacySettingsForm({ analyticsOptIn, tipsOptIn }: { analyticsOp
           </Button>
         </div>
         <p className="mt-3 text-xs text-[color:var(--text-muted)]">Your export includes all transactions, goals, notes, and budget data.</p>
+
+        <div className="mt-5 border-t border-black/10 pt-4">
+          <h3 className="text-sm font-semibold">Import transactions</h3>
+          <p className="mt-1 text-xs text-[color:var(--text-secondary)]">
+            Upload a CSV with <code>date</code>, <code>type</code> (income/expense/savings), and <code>amount</code> columns —
+            <code>category</code>, <code>memo</code>, and <code>pending</code> are optional. Re-importing the same file never duplicates rows.
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void importCsvFile(file);
+              }}
+            />
+            <Button
+              variant="outline"
+              loading={importPending}
+              disabled={importPending}
+              onClick={() => importInputRef.current?.click()}
+            >
+              Import from CSV
+            </Button>
+          </div>
+          {importSummary ? <p className="mt-2 text-xs text-[color:var(--text-secondary)]">{importSummary}</p> : null}
+        </div>
       </section>
 
       <section className="card p-5">

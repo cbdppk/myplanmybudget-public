@@ -14,7 +14,7 @@ export default async function ProfilePage() {
 
   if (!data) {
     return (
-      <main className="mx-auto max-w-5xl px-4 py-10">
+      <main className="mx-auto max-w-6xl px-4 py-5 md:py-8">
         <PageHeader title="Personal Profile" subtitle="Your account and personal preferences." />
         <DataLoadError primaryHref="/dashboard" primaryLabel="Open dashboard" />
       </main>
@@ -22,7 +22,7 @@ export default async function ProfilePage() {
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-10">
+    <main className="mx-auto max-w-6xl px-4 py-5 md:py-8">
       <PageHeader title="Personal Profile" subtitle="Your account and personal preferences." />
 
       <section className="mt-6 grid gap-4 md:grid-cols-2">

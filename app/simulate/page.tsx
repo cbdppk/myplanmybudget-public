@@ -51,7 +51,7 @@ export default async function SimulatePage({
 
   if (!data) {
     return (
-      <main className="mx-auto max-w-5xl px-4 py-10">
+      <main className="mx-auto max-w-6xl px-4 py-5 md:py-8">
         <PageHeader title="Simulate" subtitle="Predict spending and required income for your goals." />
         <DataLoadError primaryHref="/dashboard" primaryLabel="Open dashboard" />
       </main>
@@ -60,7 +60,7 @@ export default async function SimulatePage({
   const { history, baseline, selectedScenario } = data;
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-10">
+    <main className="mx-auto max-w-6xl px-4 py-5 md:py-8">
       <PageHeader title="Simulate" subtitle="Test scenarios before changing your real budget." />
       <div className="mt-6">
         <ScenarioRunner currency={data.currency.preferred} fxRate={data.currency.rate} baseline={baseline} history={history} selectedScenario={selectedScenario} prefill={prefill} />

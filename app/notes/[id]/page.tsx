@@ -12,7 +12,7 @@ export default async function NoteDetailPage({ params }: { params: Promise<{ id:
   if (!note) return notFound();
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-10">
+    <main className="mx-auto max-w-3xl px-4 py-6 md:py-10">
       <PageHeader
         title={note.title || "Your note"}
         subtitle={`Journal entry #${note.id.slice(0, 8)}`}

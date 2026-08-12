@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { completeOnboarding } from "./actions";
-import { normalizeToMonthly, type MoneyCadence } from "@/lib/money/frequency";
+import { normalizeToMonthly, setupBudgetPeriodDays, type MoneyCadence } from "@/lib/money/frequency";
 import { supportedCurrencies } from "@/lib/money/currencies";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,7 +60,7 @@ export function OnboardingForm({ defaultName, defaultCurrency }: { defaultName: 
   }, [router]);
 
   const now = new Date();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const daysInMonth = setupBudgetPeriodDays(now, budgetStartMode);
   const currencyOptions = useMemo(() => supportedCurrencies(), []);
   const monthlyIncome = useMemo(() => normalizeToMonthly(parseAmount(incomeAmount), incomeFrequency, daysInMonth), [daysInMonth, incomeAmount, incomeFrequency]);
   const monthlyExpense = useMemo(() => normalizeToMonthly(parseAmount(expenseAmount), incomeFrequency, daysInMonth), [daysInMonth, expenseAmount, incomeFrequency]);

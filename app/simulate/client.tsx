@@ -118,12 +118,10 @@ function InfoTip({
 function BalanceChart({
   points,
   currency,
-  fxRate,
   targetAmount,
 }: {
   points: Array<{ monthIndex: number; balance: number }>;
   currency: string;
-  fxRate: number;
   targetAmount: number;
 }) {
   if (points.length === 0) return null;
@@ -549,9 +547,10 @@ export function ScenarioRunner({
                 <p className="text-sm font-semibold">{preset.title}</p>
                 <p className="mt-1 text-xs text-black/60">{preset.subtitle}</p>
                 <p className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-sky-700">
-                  {runningPresetId === preset.id ? (
-                    <span className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />
-                  ) : null}
+                  <span
+                    aria-hidden="true"
+                    className={`h-2.5 w-2.5 shrink-0 animate-spin rounded-full border-2 border-current border-t-transparent ${runningPresetId === preset.id ? "" : "invisible"}`}
+                  />
                   {runningPresetId === preset.id ? "Running..." : "Run preset"}
                 </p>
               </button>
@@ -774,7 +773,7 @@ export function ScenarioRunner({
           </div>
 
           <div className="mt-4">
-            <BalanceChart points={result.timeline} currency={currency} fxRate={fxRate} targetAmount={result.targetAmount} />
+            <BalanceChart points={result.timeline} currency={currency} targetAmount={result.targetAmount} />
             <p className="mt-2 text-xs text-black/60">
               This line shows your projected balance over time. If it goes below 0, you would run out of money in that month.
             </p>

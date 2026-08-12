@@ -27,7 +27,7 @@ export default function SettingsHelpPage() {
           </li>
           <li className="flex gap-2">
             <span className="mt-0.5 text-sky-500">•</span>
-            <span><span className="font-medium text-[color:var(--text-primary)]">Run simulations:</span> The <Link href="/simulate" className="text-sky-600 underline underline-offset-2 dark:text-sky-400">Simulate</Link> page lets you test "what if" scenarios — like a new job, a new expense, or a loan — without affecting your real data.</span>
+            <span><span className="font-medium text-[color:var(--text-primary)]">Run simulations:</span> The <Link href="/simulate" className="text-sky-600 underline underline-offset-2 dark:text-sky-400">Simulate</Link> page lets you test &quot;what if&quot; scenarios — like a new job, a new expense, or a loan — without affecting your real data.</span>
           </li>
           <li className="flex gap-2">
             <span className="mt-0.5 text-sky-500">•</span>
@@ -52,7 +52,7 @@ export default function SettingsHelpPage() {
         <p className="mt-1 text-xs text-[color:var(--text-secondary)]">Our support team is ready to help you with any questions.</p>
         <div className="mt-3 flex flex-wrap gap-3">
           <a
-            href="mailto:support@example.com"
+            href="mailto:support@myplanmybudget.app"
             className="inline-flex items-center gap-1.5 rounded-xl border [border-color:var(--border)] px-4 py-2 text-sm hover:bg-black/[0.03] dark:hover:bg-white/[0.03]"
           >
             Contact support

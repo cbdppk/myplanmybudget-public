@@ -22,6 +22,7 @@ import {
   updateProfileDetails as updateProfileDetailsRepo,
   updateSecurityPreferences as updateSecurityPreferencesRepo,
 } from "@/lib/data/settings";
+import { importTransactionsCsv as importTransactionsCsvRepo } from "@/lib/data/import";
 
 const ProfileSchema = z.object({
   name: z.string().min(2).max(80),
@@ -303,6 +304,27 @@ export async function updateAppearanceSettings(input: z.infer<typeof AppearanceS
   await runSettingsMutation("updateAppearanceSettings", () => updateAppearanceSettingsRepo(AppearanceSchema.parse(input)));
   revalidatePath("/settings");
   return { ok: true };
+}
+
+const ImportCsvSchema = z.object({ csv: z.string().min(1).max(600_000) });
+
+export async function importTransactionsFromCsv(input: z.infer<typeof ImportCsvSchema>) {
+  const { csv } = ImportCsvSchema.parse(input);
+  let result: Awaited<ReturnType<typeof importTransactionsCsvRepo>> = { imported: 0, skipped: 0, errors: [] };
+  await runSettingsMutation(
+    "importTransactionsFromCsv",
+    async () => {
+      result = await importTransactionsCsvRepo(csv);
+    },
+    { limit: 6, windowMs: 60_000 }
+  );
+  revalidatePath("/settings");
+  revalidatePath("/track");
+  revalidatePath("/transactions");
+  revalidatePath("/dashboard");
+  revalidatePath("/plan");
+  revalidatePath("/goals");
+  return { ok: true, ...result };
 }
 
 export async function resetAllUserData() {

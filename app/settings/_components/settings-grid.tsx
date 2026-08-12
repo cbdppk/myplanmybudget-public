@@ -53,7 +53,10 @@ export function SettingsGrid() {
           >
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-semibold">{section.title}</p>
-              {isLoading && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-[color:var(--text-secondary)]" />}
+              <Loader2
+                aria-hidden="true"
+                className={`h-3.5 w-3.5 shrink-0 animate-spin text-[color:var(--text-secondary)] ${isLoading ? "" : "invisible"}`}
+              />
             </div>
             <p className="mt-1 text-xs text-[color:var(--text-secondary)]">{section.desc}</p>
           </button>

@@ -17,7 +17,7 @@ export default async function NotesPage() {
 
   if (!data) {
     return (
-      <main className="mx-auto max-w-5xl px-4 py-10">
+      <main className="mx-auto max-w-6xl px-4 py-5 md:py-8">
         <PageHeader title="Notes" subtitle="Your personal note vault." />
         <DataLoadError primaryHref="/dashboard" primaryLabel="Open dashboard" />
       </main>
@@ -25,7 +25,7 @@ export default async function NotesPage() {
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-10">
+    <main className="mx-auto max-w-6xl px-4 py-5 md:py-8">
       <PageHeader
         title="Notes"
         subtitle="Your personal note vault. Saved notes stay available anytime you sign in."

@@ -16,7 +16,7 @@ export default async function RemindersPage() {
 
   if (!data) {
     return (
-      <main className="mx-auto max-w-5xl px-4 py-10">
+      <main className="mx-auto max-w-6xl px-4 py-5 md:py-8">
         <PageHeader title="Reminders" subtitle="Track deadlines and schedule follow-ups." />
         <DataLoadError primaryHref="/dashboard" primaryLabel="Open dashboard" />
       </main>
@@ -24,7 +24,7 @@ export default async function RemindersPage() {
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-10">
+    <main className="mx-auto max-w-6xl px-4 py-5 md:py-8">
       <PageHeader
         title="Reminders"
         subtitle="Track deadlines, recurring reminders, and add events to your device calendar."

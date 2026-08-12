@@ -27,6 +27,7 @@ type InitialData = {
   fxRate: number;
   incomeFrequency: MoneyCadence;
   budgetStartMode: BudgetStartMode;
+  monthStartDay: number;
   incomeAmount: number;
   monthlyExpense: number;
   monthlySavings: number;
@@ -90,7 +91,7 @@ export function BudgetEditClient({ initial }: { initial: InitialData }) {
   const [incomeFrequency, setIncomeFrequency] = useState<MoneyCadence>(initial.incomeFrequency);
   const [currency, setCurrency] = useState(initial.currency);
   const [currencySearch, setCurrencySearch] = useState("");
-  const [startMode, setStartMode] = useState<BudgetStartMode>(initial.budgetStartMode);
+  const [startMode] = useState<BudgetStartMode>(initial.budgetStartMode);
 
   const [incomeAmount, setIncomeAmount] = useState(initial.incomeAmount.toFixed(2));
   const [monthlyExpense, setMonthlyExpense] = useState(initial.monthlyExpense.toFixed(2));
@@ -124,7 +125,7 @@ export function BudgetEditClient({ initial }: { initial: InitialData }) {
     return currencyOptions.filter((code) => code.includes(q));
   }, [currencyOptions, currencySearch]);
 
-  const monthStartDayNum = Math.min(28, Math.max(1, new Date().getDate()));
+  const monthStartDayNum = initial.monthStartDay;
   const incomeMonthlyEquivalent = useMemo(() => normalizeToMonthly(asAmount(incomeAmount), incomeFrequency, initial.daysInMonth), [incomeAmount, incomeFrequency, initial.daysInMonth]);
 
   const expenseRows = useMemo(() => rows.filter((row) => row.kind === "expense"), [rows]);
@@ -332,15 +333,18 @@ export function BudgetEditClient({ initial }: { initial: InitialData }) {
               <p className="text-xs text-black/60">Start mode</p>
               <div className="mt-2 flex flex-wrap gap-2 text-sm">
                 <label className="inline-flex items-center gap-2 rounded-xl border border-black/10 px-3 py-2">
-                  <input type="radio" checked={startMode === "CURRENT_MONTH"} onChange={() => setStartMode("CURRENT_MONTH")} />
+                  <input type="radio" checked={startMode === "CURRENT_MONTH"} readOnly />
                   Start now
                 </label>
                 <label className="inline-flex items-center gap-2 rounded-xl border border-black/10 px-3 py-2">
-                  <input type="radio" checked={startMode === "NEXT_MONTH"} onChange={() => setStartMode("NEXT_MONTH")} />
+                  <input type="radio" checked={startMode === "NEXT_MONTH"} readOnly />
                   Start next month
                 </label>
               </div>
-              <p className="mt-2 text-xs text-black/60">Estimated activation in {daysUntilStart()} day(s).</p>
+              <p className="mt-2 text-xs text-black/60">
+                This choice applies during initial setup and is now locked to preserve your period and carry-forward history.
+                {startMode === "NEXT_MONTH" ? ` Estimated activation in ${daysUntilStart()} day(s).` : ""}
+              </p>
             </div>
           </div>
         ) : null}

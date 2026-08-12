@@ -77,6 +77,7 @@ export function BudgetSettingsForm({
     blockExtrasWhenSurplusNegative: boolean;
     showSimulationSuggestion: boolean;
     updatedAt: string;
+    daysInPeriod: number;
     categories: BudgetCategoryItem[];
   };
 }) {
@@ -111,8 +112,7 @@ export function BudgetSettingsForm({
   const newExpenseCategoryRef = useRef<HTMLDivElement>(null);
   const newSavingsCategoryRef = useRef<HTMLDivElement>(null);
 
-  const now = new Date();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const daysInMonth = initialBudget.daysInPeriod;
 
   useEffect(() => {
     setRows((prev) => prev.map((row) => ({ ...row, cadence: incomeFrequency })));
@@ -325,9 +325,9 @@ export function BudgetSettingsForm({
           <label className="text-xs text-[color:var(--text-secondary)]">
             <span className="inline-flex items-center gap-1">
               Budget starts
-              <HelpTip text="Choose whether baseline budget begins in the current or next period window." />
+              <HelpTip text="This is chosen during initial setup and then locked so existing periods and carry-forward history are not re-bucketed." />
             </span>
-            <select className="mt-1 h-10 w-full rounded-xl border [border-color:var(--border)] px-3 text-sm bg-[color:var(--card-bg)] disabled:bg-black/[0.04] dark:disabled:bg-white/[0.04]" disabled={!editingBehavior} value={budgetStartMode} onChange={(e) => setBudgetStartMode(e.target.value)}>
+            <select className="mt-1 h-10 w-full rounded-xl border [border-color:var(--border)] px-3 text-sm bg-[color:var(--card-bg)] disabled:bg-black/[0.04] dark:disabled:bg-white/[0.04]" disabled value={budgetStartMode} onChange={(e) => setBudgetStartMode(e.target.value)}>
               <option value="CURRENT_MONTH">Current month</option>
               <option value="NEXT_MONTH">Next month</option>
             </select>

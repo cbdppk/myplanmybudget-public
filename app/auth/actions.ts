@@ -15,7 +15,6 @@ export async function logout() {
   return { ok: true };
 }
 
-export async function reauthenticate(password: string) {
-  const _ = password;
+export async function reauthenticate(_password: string) {
   throw new Error("Password re-authentication is disabled. Use Verify with Google in Security.");
 }

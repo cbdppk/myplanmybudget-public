@@ -91,8 +91,12 @@ export function RemindersClient({ initialReminders }: { initialReminders: Remind
     setTogglingId(id);
     start(async () => {
       try {
-        await toggleReminder({ reminderId: id });
-        setReminders((prev) => sortReminders(prev.map((r) => (r.id === id ? { ...r, done: !r.done } : r))));
+        const result = await toggleReminder({ reminderId: id });
+        if (!result.ok) {
+          toast.error(result.message);
+          return;
+        }
+        setReminders((prev) => sortReminders(prev.map((r) => (r.id === id ? { ...r, done: result.done } : r))));
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Failed to update reminder.");
       } finally {
@@ -105,7 +109,11 @@ export function RemindersClient({ initialReminders }: { initialReminders: Remind
     setDeletingId(id);
     start(async () => {
       try {
-        await deleteReminder({ reminderId: id });
+        const result = await deleteReminder({ reminderId: id });
+        if (!result.ok) {
+          toast.error(result.message);
+          return;
+        }
         setReminders((prev) => prev.filter((r) => r.id !== id));
         setDeleteConfirmId(null);
         toast.success("Reminder deleted.");

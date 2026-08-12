@@ -1,6 +1,6 @@
 export default function SettingsLoading() {
   return (
-    <main className="mx-auto w-full max-w-4xl px-4 py-10">
+    <main className="mx-auto w-full max-w-4xl px-4 py-6 md:py-10">
       {/* Header */}
       <div className="mb-6 animate-pulse space-y-2">
         <div className="h-7 w-28 rounded-lg bg-black/10 dark:bg-white/10" />

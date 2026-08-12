@@ -26,8 +26,12 @@ export default async function AssistantPage() {
     .slice()
     .sort((a, b) => b.spent - a.spent)
     .find((item) => item.spent > 0) ?? null;
+  // Only categories with an actual target can be "over plan" — a category with
+  // spend but no target (target 0) is simply untracked, not overspent.
   const biggestBudgetGap =
-    data.budgetByCategory.filter((item) => item.kind === "expense" && item.remaining < 0).sort((a, b) => a.remaining - b.remaining)[0] ?? null;
+    data.budgetByCategory
+      .filter((item) => item.kind === "expense" && item.target > 0 && item.remaining < 0)
+      .sort((a, b) => a.remaining - b.remaining)[0] ?? null;
 
   const assistantContext = {
     currency: data.currency.preferred,
@@ -39,11 +43,17 @@ export default async function AssistantPage() {
     income: data.income,
     expenses: data.expenses,
     savings: data.savings,
+    // Month-anchored real actuals — reconcile with the dashboard's cards.
+    monthIncome: data.healthIncome,
+    monthExpenses: data.actualExpenseTotal,
+    monthSavings: data.actualSavingsTotal,
+    monthNet: Math.round((data.healthIncome - data.actualExpenseTotal - data.actualSavingsTotal) * 100) / 100,
     plannedIncome: data.plannedIncome,
     plannedExpenses: data.plannedExpenses,
     plannedSavings: data.plannedSavings,
     budgeted: data.budgeted,
     used: data.used,
+    actualSpent: data.actualSpent,
     budgetRemaining: data.budgetRemaining,
     budgetStatusPct: data.budgetStatusPct,
     savingsRatePct: data.savingsRatePct,

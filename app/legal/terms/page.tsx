@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 const EFFECTIVE_DATE = "1 March 2025";
 const COMPANY = "EyeHai Technologies";
 const PRODUCT = "MyplanMybudget";
-const CONTACT_EMAIL = "support@example.com";
+const CONTACT_EMAIL = "support@myplanmybudget.app";
 
 function Section({ title, id, children }: { title: string; id: string; children: React.ReactNode }) {
   return (
@@ -49,7 +49,7 @@ export default function TermsPage() {
           Effective date: <strong className="text-[color:var(--text-secondary)]">{EFFECTIVE_DATE}</strong> · Last updated: <strong className="text-[color:var(--text-secondary)]">{EFFECTIVE_DATE}</strong>
         </p>
         <p className="mt-4 text-sm leading-relaxed text-[color:var(--text-secondary)]">
-          These Terms of Service ("Terms") govern your access to and use of {PRODUCT}, operated by {COMPANY} ("we", "us", or "our"). By creating an account or using the service, you agree to be bound by these Terms. If you do not agree, do not use {PRODUCT}.
+          These Terms of Service (&quot;Terms&quot;) govern your access to and use of {PRODUCT}, operated by {COMPANY} (&quot;we&quot;, &quot;us&quot;, or &quot;our&quot;). By creating an account or using the service, you agree to be bound by these Terms. If you do not agree, do not use {PRODUCT}.
         </p>
       </div>
 
@@ -106,7 +106,7 @@ export default function TermsPage() {
           </Section>
 
           <Section id="content" title="5. Your Content">
-            <p><strong>Ownership.</strong> You retain all ownership rights to the financial data, notes, and other content you submit to {PRODUCT} ("Your Content"). We do not claim ownership of Your Content.</p>
+            <p><strong>Ownership.</strong> You retain all ownership rights to the financial data, notes, and other content you submit to {PRODUCT} (&quot;Your Content&quot;). We do not claim ownership of Your Content.</p>
             <p><strong>Licence to us.</strong> By submitting content you grant {COMPANY} a limited, non-exclusive, royalty-free licence to store, process, and display Your Content solely as necessary to provide the service to you.</p>
             <p><strong>Accuracy.</strong> You are solely responsible for the accuracy of the financial data you enter. {PRODUCT} performs calculations based on the data you provide; it does not independently verify your financial information.</p>
             <p><strong>Export.</strong> You may export Your Content via the data export feature at any time. We encourage you to keep copies of important data.</p>
@@ -123,7 +123,7 @@ export default function TermsPage() {
 
           <Section id="disclaimers" title="8. Disclaimers">
             <p><strong>{PRODUCT} is not a financial advisor.</strong> The service is a tool to help you organise and visualise your own financial data. Nothing in the service constitutes financial, investment, legal, or tax advice. You should consult a qualified professional before making significant financial decisions.</p>
-            <p><strong>No warranty.</strong> The service is provided "as is" and "as available" without warranty of any kind, express or implied, including but not limited to warranties of merchantability, fitness for a particular purpose, or non-infringement. We do not warrant that the service will be uninterrupted, error-free, or completely secure.</p>
+            <p><strong>No warranty.</strong> The service is provided &quot;as is&quot; and &quot;as available&quot; without warranty of any kind, express or implied, including but not limited to warranties of merchantability, fitness for a particular purpose, or non-infringement. We do not warrant that the service will be uninterrupted, error-free, or completely secure.</p>
           </Section>
 
           <Section id="liability" title="9. Limitation of Liability">

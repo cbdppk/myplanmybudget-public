@@ -187,14 +187,14 @@ export function NotesBoard({ initialNotes }: { initialNotes: NoteRow[] }) {
                   className="flex-1 text-left"
                 >
                   <p className="text-sm font-semibold leading-snug">
-                    {openingId === note.id ? (
-                      <span className="inline-flex items-center gap-1.5">
-                        <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                        {note.title || "Untitled"}
-                      </span>
-                    ) : (
-                      note.title || "Untitled"
-                    )}
+                    <span className="relative inline-flex items-center">
+                      <span className={openingId === note.id ? "invisible" : undefined}>{note.title || "Untitled"}</span>
+                      {openingId === note.id ? (
+                        <span className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
+                          <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                        </span>
+                      ) : null}
+                    </span>
                   </p>
                 </button>
                 <button

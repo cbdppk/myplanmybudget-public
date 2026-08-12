@@ -10,7 +10,7 @@ export default async function AdminPage() {
     const data = await getAdminData();
 
     return (
-      <main className="mx-auto max-w-6xl px-4 py-10">
+      <main className="mx-auto max-w-6xl px-4 py-6 md:py-10">
         <PageHeader title="Admin" subtitle="Control users, roles, support inboxes, and assistant complaints." />
 
         <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">

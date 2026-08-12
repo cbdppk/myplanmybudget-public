@@ -16,7 +16,7 @@ export function DashboardFilters({
 
   return (
     <section className="mt-5 flex flex-wrap items-center gap-2">
-      {(["WEEKLY", "MONTHLY", "ALL_TIME"] as const).map((item) => (
+      {(["DAY", "WEEKLY", "MONTHLY", "ALL_TIME"] as const).map((item) => (
         <LoadingLinkButton
           key={item}
           href={`/dashboard?range=${item}`}
@@ -24,7 +24,7 @@ export function DashboardFilters({
           variant={!month && range === item ? "default" : "outline"}
           className="h-9 rounded-full px-4 text-xs"
         >
-          {item === "ALL_TIME" ? "All time" : item === "WEEKLY" ? "This week" : "This month"}
+          {item === "DAY" ? "Today" : item === "ALL_TIME" ? "All time" : item === "WEEKLY" ? "This week" : "This month"}
         </LoadingLinkButton>
       ))}
       {userMonths.length > 0 ? (

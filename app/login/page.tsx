@@ -37,7 +37,7 @@ export default async function LoginPage({
         {/* Middle content */}
         <div className="relative">
           <blockquote className="text-2xl font-semibold leading-snug text-white">
-            "The clearest money picture I've ever had. I finally know where every dollar goes."
+            &quot;The clearest money picture I&apos;ve ever had. I finally know where every dollar goes.&quot;
           </blockquote>
           <p className="mt-4 text-sm text-white/45">— A daily active user</p>
           <div className="mt-10 space-y-3">
@@ -76,7 +76,7 @@ export default async function LoginPage({
             <p className="kicker">Welcome back</p>
             <h1 className="mt-2 text-3xl font-bold tracking-tight text-[color:var(--text-primary)]">Sign in</h1>
             <p className="mt-2 text-sm text-[color:var(--text-secondary)]">
-              Don't have an account?{" "}
+              Don&apos;t have an account?{" "}
               <LoadingLinkButton
                 href="/signup"
                 variant="ghost"

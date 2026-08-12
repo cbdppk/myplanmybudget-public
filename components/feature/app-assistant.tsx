@@ -1,20 +1,26 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { ArrowUp, RotateCcw } from "lucide-react";
+import { ArrowUp, RotateCcw, ThumbsDown, ThumbsUp } from "lucide-react";
 import {
   LOCAL_ASSISTANT_PROMPT_GROUPS,
   buildOpeningReplies,
   resolveLocalAssistantReply,
   type LocalAssistantContext,
 } from "@/lib/ai/local-assistant";
+import { submitAssistantFeedback } from "@/app/assistant/actions";
 
 type AssistantMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
   suggestions?: string[];
+  // The user question that prompted this assistant reply (used when the user
+  // rates the reply so the saved feedback has context). Absent on seed messages.
+  sourceQuestion?: string;
 };
+
+type FeedbackState = "up" | "down" | "sending";
 
 function uniqueStrings(values: string[] | undefined) {
   const seen = new Set<string>();
@@ -61,7 +67,7 @@ function MessageContent({ content }: { content: string }) {
 
 export function AppAssistant({
   context,
-  viewer,
+  viewer: _viewer,
 }: {
   context: LocalAssistantContext;
   viewer: { name: string | null; email: string };
@@ -99,6 +105,8 @@ export function AppAssistant({
   const [messages, setMessages] = useState<AssistantMessage[]>(() => initialMessages);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  // Per-message reply rating, keyed by message id.
+  const [feedback, setFeedback] = useState<Record<string, FeedbackState>>({});
   const chatStarted = messages.some((m) => m.role === "user");
 
   useEffect(() => {
@@ -135,11 +143,35 @@ export function AppAssistant({
         role: "assistant",
         content: reply.content,
         suggestions: uniqueStrings(reply.suggestions),
+        sourceQuestion: content,
       },
     ]);
 
     setLoading(false);
     window.setTimeout(() => inputRef.current?.focus(), 40);
+  }
+
+  async function rateReply(message: AssistantMessage, rating: "up" | "down") {
+    if (feedback[message.id]) return;
+    setFeedback((prev) => ({ ...prev, [message.id]: "sending" }));
+    try {
+      await submitAssistantFeedback({
+        category: rating === "up" ? "OTHER" : "COMPLAINT",
+        subject: rating === "up" ? "Assistant reply rated helpful" : "Assistant reply rated unhelpful",
+        message:
+          `User rated an assistant reply ${rating === "up" ? "helpful 👍" : "unhelpful 👎"}.\n\n` +
+          `Question: ${message.sourceQuestion ?? "(unknown)"}\n\nReply: ${message.content}`,
+        sourceQuestion: message.sourceQuestion,
+      });
+      setFeedback((prev) => ({ ...prev, [message.id]: rating }));
+    } catch {
+      // Surface failures by re-enabling the controls rather than blocking the chat.
+      setFeedback((prev) => {
+        const next = { ...prev };
+        delete next[message.id];
+        return next;
+      });
+    }
   }
 
   function handleSubmit(event: FormEvent) {
@@ -212,6 +244,36 @@ export function AppAssistant({
                       ))}
                     </div>
                   )}
+                  {message.sourceQuestion ? (
+                    <div className="mt-2 flex items-center gap-1.5 pl-1">
+                      {feedback[message.id] === "up" || feedback[message.id] === "down" ? (
+                        <span className="text-xs text-[color:var(--text-secondary)]">
+                          Thanks for the feedback{feedback[message.id] === "down" ? " — we’ll use it to improve" : ""}.
+                        </span>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            aria-label="This reply was helpful"
+                            disabled={feedback[message.id] === "sending"}
+                            onClick={() => void rateReply(message, "up")}
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-[color:var(--text-secondary)] transition hover:bg-black/[0.05] hover:text-emerald-600 disabled:opacity-50"
+                          >
+                            <ThumbsUp className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="This reply was not helpful"
+                            disabled={feedback[message.id] === "sending"}
+                            onClick={() => void rateReply(message, "down")}
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-[color:var(--text-secondary)] transition hover:bg-black/[0.05] hover:text-rose-600 disabled:opacity-50"
+                          >
+                            <ThumbsDown className="h-3.5 w-3.5" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  ) : null}
                 </div>
               )}
             </div>

@@ -12,6 +12,20 @@ import { IdleLogout } from "@/components/shell/idle-logout";
 import { DashboardTourNudge } from "@/components/feature/dashboard-tour-nudge";
 import { InAppOnboardingTour } from "@/components/feature/in-app-onboarding-tour";
 
+/** Keeps the nav item at its resting size while pending — the spinner sits on top of the label. */
+function NavLabel({ label, pending }: { label: string; pending: boolean }) {
+  return (
+    <span className="relative inline-flex items-center">
+      <span className={cn("inline-flex items-center", pending && "invisible")}>{label}</span>
+      {pending ? (
+        <span className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
+          <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 function FullScreenSpinner() {
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[color:var(--page-bg)]">
@@ -227,7 +241,7 @@ export function AppShell({
           ) : null}
         </header>
 
-        <div className="mx-auto flex w-full max-w-7xl items-start gap-4 px-2 py-4">
+        <div className="mx-auto flex w-full max-w-7xl items-start gap-4 px-2 py-2 md:py-4">
           <aside
             data-tour="desktop-sidebar"
             className={cn(
@@ -245,6 +259,7 @@ export function AppShell({
                     href={item.href}
                     aria-current={active ? "page" : undefined}
                     aria-busy={pendingHref === item.href || undefined}
+                    data-tour={`nav-${item.href}`}
                     className={cn(
                       "block rounded-xl border border-transparent px-3 py-2 text-sm text-[color:var(--text-secondary)] transition hover:border-sky-300/60 hover:bg-[color:var(--page-secondary)] hover:text-[color:var(--text-primary)]",
                       pendingHref === item.href && "opacity-90",
@@ -253,12 +268,7 @@ export function AppShell({
                     )}
                     onClick={(event) => onNavClick(event, item.href)}
                   >
-                    <span className="inline-flex items-center gap-2">
-                      {pendingHref === item.href ? (
-                        <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />
-                      ) : null}
-                      {item.label}
-                    </span>
+                    <NavLabel label={item.label} pending={pendingHref === item.href} />
                   </Link>
                 );
               })}
@@ -300,6 +310,7 @@ export function AppShell({
                       href={item.href}
                       aria-current={active ? "page" : undefined}
                       aria-busy={pendingHref === item.href || undefined}
+                      data-tour={`mobile-nav-${item.href}`}
                       className={cn(
                         "block rounded-xl border border-transparent px-3 py-2 text-sm text-[color:var(--text-secondary)] transition hover:border-sky-300/60 hover:bg-[color:var(--page-secondary)] hover:text-[color:var(--text-primary)]",
                         pendingHref === item.href && "opacity-90",
@@ -308,12 +319,7 @@ export function AppShell({
                       )}
                       onClick={(event) => onNavClick(event, item.href, () => setMobileOpen(false))}
                     >
-                      <span className="inline-flex items-center gap-2">
-                        {pendingHref === item.href ? (
-                          <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />
-                        ) : null}
-                        {item.label}
-                      </span>
+                      <NavLabel label={item.label} pending={pendingHref === item.href} />
                     </Link>
                   );
                 })}
@@ -323,12 +329,7 @@ export function AppShell({
                   className="mt-2 block rounded-xl border [border-color:var(--border)] px-3 py-2 text-sm text-[color:var(--text-secondary)]"
                   onClick={(event) => onNavClick(event, "/profile", () => setMobileOpen(false))}
                 >
-                  <span className="inline-flex items-center gap-2">
-                    {pendingHref === "/profile" ? (
-                      <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />
-                    ) : null}
-                    Profile
-                  </span>
+                  <NavLabel label="Profile" pending={pendingHref === "/profile"} />
                 </Link>
                 <Button
                   type="button"
@@ -391,12 +392,7 @@ export function AppShell({
                   )}
                   onClick={(event) => onNavClick(event, item.href)}
                 >
-                  <span className="inline-flex items-center gap-2">
-                    {pendingHref === item.href ? (
-                      <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />
-                    ) : null}
-                    {item.label}
-                  </span>
+                  <NavLabel label={item.label} pending={pendingHref === item.href} />
                 </Link>
               );
             })}
@@ -477,12 +473,7 @@ export function AppShell({
                       active && "border-[color:var(--border)] bg-[color:var(--page-secondary)] font-semibold text-[color:var(--text-primary)]"
                     )}
                   >
-                    <span className="inline-flex items-center gap-2">
-                      {pendingHref === item.href ? (
-                        <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />
-                      ) : null}
-                      {item.label}
-                    </span>
+                    <NavLabel label={item.label} pending={pendingHref === item.href} />
                   </Link>
                 );
               })}

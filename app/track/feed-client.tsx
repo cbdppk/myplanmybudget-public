@@ -4,7 +4,7 @@ import { useMemo, useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { QuickExpenseForm } from "./client-form";
-import { deleteTransaction } from "./actions";
+import { createTransfer, deleteTransaction, splitTransaction, updateTransaction } from "./actions";
 import { Button } from "@/components/ui/button";
 
 type Txn = {
@@ -14,7 +14,20 @@ type Txn = {
   amount: number;
   occurredAt: Date | string;
   category: string | null;
+  cleared?: boolean;
 };
+
+type Account = {
+  id: string;
+  name: string;
+  type: string;
+  balance: number;
+  clearedBalance: number;
+  isDefault: boolean;
+  isLiability: boolean;
+};
+
+type SplitPart = { amount: string; category: string };
 
 function toMoney(value: number, currency: string, fxRate = 1) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 2 }).format(value * fxRate);
@@ -41,6 +54,11 @@ export function TrackFeedClient({
   impact,
   categories,
   transactions,
+  accounts,
+  netWorth,
+  clearedNetWorth,
+  assetsTotal,
+  liabilitiesTotal,
 }: {
   currency: string;
   fxRate: number;
@@ -86,10 +104,30 @@ export function TrackFeedClient({
   impact: { headline: string; detail: string; projection: string; tone: "good" | "warn" | "bad" };
   categories: { expense: string[]; savings: string[] };
   transactions: Txn[];
+  accounts: Account[];
+  netWorth: number;
+  clearedNetWorth: number;
+  assetsTotal: number;
+  liabilitiesTotal: number;
 }) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isPendingDelete, startDeleteTransition] = useTransition();
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editAmount, setEditAmount] = useState("");
+  const [editMemo, setEditMemo] = useState("");
+  const [editCategory, setEditCategory] = useState("");
+  const [editDate, setEditDate] = useState("");
+  const [isPendingEdit, startEditTransition] = useTransition();
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [transferFrom, setTransferFrom] = useState("");
+  const [transferTo, setTransferTo] = useState("");
+  const [transferAmount, setTransferAmount] = useState("");
+  const [isPendingTransfer, startTransferTransition] = useTransition();
+  const [splittingId, setSplittingId] = useState<string | null>(null);
+  const [splitParts, setSplitParts] = useState<SplitPart[]>([]);
+  const [isPendingSplit, startSplitTransition] = useTransition();
+  const [isPendingClearToggle, startClearToggleTransition] = useTransition();
   const router = useRouter();
 
   const [optimisticTransactions, addOptimisticTransaction] = useOptimistic(
@@ -123,6 +161,110 @@ export function TrackFeedClient({
         toast.error(msg);
       } finally {
         setDeletingId(null);
+      }
+    });
+  }
+
+  function submitTransfer() {
+    const amount = Number(transferAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error("Enter a valid transfer amount.");
+      return;
+    }
+    if (!transferFrom || !transferTo || transferFrom === transferTo) {
+      toast.error("Choose two different accounts.");
+      return;
+    }
+    startTransferTransition(async () => {
+      try {
+        await createTransfer({ fromAccountId: transferFrom, toAccountId: transferTo, amount });
+        setTransferOpen(false);
+        setTransferAmount("");
+        toast.success("Transfer recorded.");
+        router.refresh();
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Transfer failed.");
+      }
+    });
+  }
+
+  function startEdit(item: Txn) {
+    setEditingId(item.id);
+    setSplittingId(null);
+    setEditAmount(String(item.amount));
+    setEditMemo(item.memo ?? "");
+    setEditCategory(item.category ?? "");
+    setEditDate(new Date(item.occurredAt).toISOString().slice(0, 10));
+  }
+
+  function startSplit(item: Txn) {
+    setEditingId(null);
+    setSplittingId(item.id);
+    const half = Math.round((item.amount / 2) * 100) / 100;
+    setSplitParts([
+      { amount: String(half), category: item.category ?? "" },
+      { amount: String(Math.round((item.amount - half) * 100) / 100), category: "" },
+    ]);
+  }
+
+  function submitSplit(item: Txn) {
+    const parts = splitParts.map((part) => ({
+      amount: Number(part.amount),
+      category: part.category.trim() || undefined,
+    }));
+    if (parts.some((part) => !Number.isFinite(part.amount) || part.amount <= 0)) {
+      toast.error("Every part needs an amount greater than 0.");
+      return;
+    }
+    const total = Math.round(parts.reduce((sum, part) => sum + part.amount, 0) * 100) / 100;
+    if (Math.abs(total - item.amount) > 0.01) {
+      toast.error(`Parts add up to ${total.toFixed(2)} but the transaction is ${item.amount.toFixed(2)}.`);
+      return;
+    }
+    startSplitTransition(async () => {
+      try {
+        await splitTransaction({ id: item.id, parts });
+        setSplittingId(null);
+        toast.success("Transaction split.");
+        router.refresh();
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Split failed.");
+      }
+    });
+  }
+
+  function toggleCleared(item: Txn) {
+    startClearToggleTransition(async () => {
+      try {
+        await updateTransaction({ id: item.id, cleared: item.cleared === false });
+        toast.success(item.cleared === false ? "Marked as cleared." : "Marked as pending.");
+        router.refresh();
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Update failed.");
+      }
+    });
+  }
+
+  function saveEdit(item: Txn) {
+    const amount = Number(editAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error("Enter a valid amount greater than 0.");
+      return;
+    }
+    startEditTransition(async () => {
+      try {
+        await updateTransaction({
+          id: item.id,
+          amount,
+          memo: editMemo,
+          category: item.type === "INCOME" ? undefined : editCategory,
+          occurredAt: editDate || undefined,
+        });
+        setEditingId(null);
+        toast.success("Transaction updated.");
+        router.refresh();
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Update failed.");
       }
     });
   }
@@ -218,10 +360,91 @@ export function TrackFeedClient({
         </article>
       </section>
 
+      {accounts.length > 0 ? (
+        <section className="card p-5">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold">Accounts</h2>
+              <p className="mt-1 text-xs text-black/60">Computed from opening balance plus every linked transaction — compare against your real balances to reconcile.</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[11px] uppercase tracking-[0.14em] text-black/45">Net worth</p>
+              <p className={`mt-1 text-lg font-semibold ${netWorth < 0 ? "text-rose-700" : "text-emerald-700"}`}>
+                {toMoney(netWorth, currency, fxRate)}
+              </p>
+              {Math.abs(clearedNetWorth - netWorth) > 0.004 ? (
+                <p className="text-[11px] text-black/50">Cleared: {toMoney(clearedNetWorth, currency, fxRate)}</p>
+              ) : null}
+              {liabilitiesTotal > 0 ? (
+                <p className="text-[11px] text-black/50">
+                  {toMoney(assetsTotal, currency, fxRate)} assets − {toMoney(liabilitiesTotal, currency, fxRate)} debts
+                </p>
+              ) : null}
+            </div>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {accounts.map((account) => (
+              <div key={account.id} className="rounded-2xl border border-black/10 bg-slate-50 px-4 py-3">
+                <p className="text-xs font-medium text-black/60">
+                  {account.name}
+                  {account.isDefault ? <span className="ml-1 rounded-full bg-slate-200 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-slate-600">default</span> : null}
+                  {account.isLiability ? <span className="ml-1 rounded-full bg-rose-100 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-rose-600">debt</span> : null}
+                </p>
+                <p className={`mt-1 text-base font-semibold ${account.balance < 0 ? "text-rose-700" : "text-slate-900"}`}>
+                  {toMoney(account.balance, currency, fxRate)}
+                </p>
+                {Math.abs(account.clearedBalance - account.balance) > 0.004 ? (
+                  <p className="text-[11px] text-black/50">Cleared: {toMoney(account.clearedBalance, currency, fxRate)}</p>
+                ) : null}
+              </div>
+            ))}
+          </div>
+          {accounts.length > 1 ? (
+            <div className="mt-3">
+              {transferOpen ? (
+                <div className="grid gap-2 rounded-2xl border border-black/10 bg-slate-50 p-3 sm:grid-cols-4">
+                  <label>
+                    <div className="text-xs font-medium text-black/60">From</div>
+                    <select className="mt-1 h-9 w-full rounded-lg border border-black/15 bg-white px-2 text-sm" value={transferFrom} onChange={(e) => setTransferFrom(e.target.value)}>
+                      <option value="">Select…</option>
+                      {accounts.map((account) => (
+                        <option key={account.id} value={account.id}>{account.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <div className="text-xs font-medium text-black/60">To</div>
+                    <select className="mt-1 h-9 w-full rounded-lg border border-black/15 bg-white px-2 text-sm" value={transferTo} onChange={(e) => setTransferTo(e.target.value)}>
+                      <option value="">Select…</option>
+                      {accounts.map((account) => (
+                        <option key={account.id} value={account.id}>{account.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <div className="text-xs font-medium text-black/60">Amount</div>
+                    <input className="mt-1 h-9 w-full rounded-lg border border-black/15 bg-white px-3 text-sm" inputMode="decimal" value={transferAmount} onChange={(e) => setTransferAmount(e.target.value)} placeholder="0.00" />
+                  </label>
+                  <div className="flex items-end gap-2">
+                    <Button type="button" size="sm" loading={isPendingTransfer} disabled={isPendingTransfer} onClick={submitTransfer}>Move</Button>
+                    <Button type="button" size="sm" variant="ghost" disabled={isPendingTransfer} onClick={() => setTransferOpen(false)}>Cancel</Button>
+                  </div>
+                </div>
+              ) : (
+                <Button type="button" size="sm" variant="outline" onClick={() => setTransferOpen(true)}>
+                  Transfer between accounts
+                </Button>
+              )}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
       <section id="quick-form" className="scroll-mt-24">
         <QuickExpenseForm
           expenseCategories={categories.expense}
           savingsCategories={categories.savings}
+          accounts={accounts}
           liveBalance={liveBalance}
           currency={currency}
           fxRate={fxRate}
@@ -328,9 +551,47 @@ export function TrackFeedClient({
                   </p>
                 </div>
                 <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-end">
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] ${item.type === "INCOME" ? "bg-emerald-100 text-emerald-700" : item.type === "SAVINGS" ? "bg-blue-100 text-blue-700" : "bg-rose-100 text-rose-700"}`}>
+                  {item.cleared === false ? (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] text-amber-700">
+                      Pending
+                    </span>
+                  ) : null}
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] ${item.type === "INCOME" ? "bg-emerald-100 text-emerald-700" : item.type === "SAVINGS" ? "bg-blue-100 text-blue-700" : item.type === "TRANSFER" ? "bg-slate-100 text-slate-700" : "bg-rose-100 text-rose-700"}`}>
                     {item.type}
                   </span>
+                  {item.type !== "TRANSFER" && !item.id.startsWith("optimistic-") ? (
+                    <>
+                      <button
+                        type="button"
+                        aria-label={item.cleared === false ? "Mark as cleared" : "Mark as pending"}
+                        title={item.cleared === false ? "Mark as cleared" : "Mark as pending"}
+                        disabled={isPendingClearToggle}
+                        onClick={() => toggleCleared(item)}
+                        className={`flex h-6 w-6 items-center justify-center rounded-full hover:bg-amber-50 disabled:opacity-40 ${item.cleared === false ? "text-amber-500" : "text-black/30 hover:text-amber-600"}`}
+                      >
+                        ⏱
+                      </button>
+                      {item.type !== "INCOME" ? (
+                        <button
+                          type="button"
+                          aria-label="Split transaction"
+                          title="Split into parts"
+                          onClick={() => (splittingId === item.id ? setSplittingId(null) : startSplit(item))}
+                          className="flex h-6 w-6 items-center justify-center rounded-full text-black/30 hover:bg-violet-50 hover:text-violet-600"
+                        >
+                          ⑂
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        aria-label="Edit transaction"
+                        onClick={() => (editingId === item.id ? setEditingId(null) : startEdit(item))}
+                        className="flex h-6 w-6 items-center justify-center rounded-full text-black/30 hover:bg-sky-50 hover:text-sky-600"
+                      >
+                        ✎
+                      </button>
+                    </>
+                  ) : null}
                   <button
                     type="button"
                     aria-label="Delete transaction"
@@ -345,9 +606,133 @@ export function TrackFeedClient({
                   </button>
                 </div>
               </div>
-              <p className={`mt-2 break-words text-sm font-semibold [overflow-wrap:anywhere] ${item.type === "INCOME" ? "text-emerald-700" : item.type === "SAVINGS" ? "text-blue-700" : "text-rose-700"}`}>
-                {item.type === "INCOME" ? "+" : "-"}{toMoney(item.amount, currency, fxRate)}
+              <p className={`mt-2 break-words text-sm font-semibold [overflow-wrap:anywhere] ${item.type === "INCOME" ? "text-emerald-700" : item.type === "SAVINGS" ? "text-blue-700" : item.type === "TRANSFER" ? "text-slate-700" : "text-rose-700"}`}>
+                {item.type === "INCOME" ? "+" : item.type === "TRANSFER" ? "" : "-"}{toMoney(item.amount, currency, fxRate)}
               </p>
+              {splittingId === item.id ? (
+                <div className="mt-3 rounded-xl border border-violet-100 bg-violet-50/50 p-3">
+                  <p className="text-xs font-medium text-black/60">
+                    Split {toMoney(item.amount, currency, fxRate)} into parts — each part keeps this date and account.
+                  </p>
+                  <div className="mt-2 space-y-2">
+                    {splitParts.map((part, index) => (
+                      <div key={index} className="grid gap-2 sm:grid-cols-[8rem_1fr_2rem]">
+                        <input
+                          className="h-9 rounded-lg border border-black/15 bg-white px-3 text-sm"
+                          inputMode="decimal"
+                          placeholder="0.00"
+                          value={part.amount}
+                          onChange={(event) =>
+                            setSplitParts((prev) => prev.map((p, i) => (i === index ? { ...p, amount: event.target.value } : p)))
+                          }
+                        />
+                        <input
+                          className="h-9 rounded-lg border border-black/15 bg-white px-3 text-sm"
+                          placeholder="Category (optional)"
+                          list={`split-categories-${item.id}`}
+                          value={part.category}
+                          onChange={(event) =>
+                            setSplitParts((prev) => prev.map((p, i) => (i === index ? { ...p, category: event.target.value } : p)))
+                          }
+                        />
+                        {splitParts.length > 2 ? (
+                          <button
+                            type="button"
+                            aria-label="Remove part"
+                            className="flex h-9 w-8 items-center justify-center rounded-lg text-black/30 hover:text-red-500"
+                            onClick={() => setSplitParts((prev) => prev.filter((_, i) => i !== index))}
+                          >
+                            ×
+                          </button>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                  <datalist id={`split-categories-${item.id}`}>
+                    {(item.type === "SAVINGS" ? categories.savings : categories.expense).map((name) => (
+                      <option key={name} value={name} />
+                    ))}
+                  </datalist>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <Button type="button" size="sm" loading={isPendingSplit} disabled={isPendingSplit} onClick={() => submitSplit(item)}>
+                      Save split
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={isPendingSplit || splitParts.length >= 10}
+                      onClick={() => setSplitParts((prev) => [...prev, { amount: "", category: "" }])}
+                    >
+                      Add part
+                    </Button>
+                    <Button type="button" size="sm" variant="ghost" disabled={isPendingSplit} onClick={() => setSplittingId(null)}>
+                      Cancel
+                    </Button>
+                    <span className="text-xs text-black/55">
+                      Parts total:{" "}
+                      {splitParts
+                        .reduce((sum, part) => sum + (Number(part.amount) || 0), 0)
+                        .toFixed(2)}{" "}
+                      of {item.amount.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              ) : null}
+              {editingId === item.id ? (
+                <div className="mt-3 grid gap-2 rounded-xl border border-sky-100 bg-sky-50/50 p-3 sm:grid-cols-2">
+                  <label>
+                    <div className="text-xs font-medium text-black/60">Amount</div>
+                    <input
+                      className="mt-1 h-9 w-full rounded-lg border border-black/15 bg-white px-3 text-sm"
+                      value={editAmount}
+                      onChange={(event) => setEditAmount(event.target.value)}
+                      inputMode="decimal"
+                    />
+                  </label>
+                  <label>
+                    <div className="text-xs font-medium text-black/60">Date</div>
+                    <input
+                      className="mt-1 h-9 w-full rounded-lg border border-black/15 bg-white px-3 text-sm"
+                      type="date"
+                      value={editDate}
+                      onChange={(event) => setEditDate(event.target.value)}
+                    />
+                  </label>
+                  {item.type !== "INCOME" ? (
+                    <label>
+                      <div className="text-xs font-medium text-black/60">Category</div>
+                      <input
+                        className="mt-1 h-9 w-full rounded-lg border border-black/15 bg-white px-3 text-sm"
+                        list={`edit-categories-${item.id}`}
+                        value={editCategory}
+                        onChange={(event) => setEditCategory(event.target.value)}
+                      />
+                      <datalist id={`edit-categories-${item.id}`}>
+                        {(item.type === "SAVINGS" ? categories.savings : categories.expense).map((name) => (
+                          <option key={name} value={name} />
+                        ))}
+                      </datalist>
+                    </label>
+                  ) : null}
+                  <label>
+                    <div className="text-xs font-medium text-black/60">Note</div>
+                    <input
+                      className="mt-1 h-9 w-full rounded-lg border border-black/15 bg-white px-3 text-sm"
+                      value={editMemo}
+                      onChange={(event) => setEditMemo(event.target.value)}
+                    />
+                  </label>
+                  <div className="flex items-end gap-2 sm:col-span-2">
+                    <Button type="button" size="sm" loading={isPendingEdit} disabled={isPendingEdit} onClick={() => saveEdit(item)}>
+                      Save changes
+                    </Button>
+                    <Button type="button" size="sm" variant="ghost" disabled={isPendingEdit} onClick={() => setEditingId(null)}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
             </article>
           ))}
         </div>

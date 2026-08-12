@@ -15,7 +15,7 @@ export default async function BudgetEditPage() {
 
   if (!data) {
     return (
-      <main className="mx-auto max-w-6xl px-4 py-10">
+      <main className="mx-auto max-w-6xl px-4 py-6 md:py-10">
         <PageHeader title="Edit Budget" subtitle="Configure your budget behavior and allocations." />
         <DataLoadError primaryHref="/budget" primaryLabel="Back to budget" />
       </main>
@@ -23,7 +23,7 @@ export default async function BudgetEditPage() {
   }
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-10">
+    <main className="mx-auto max-w-6xl px-4 py-6 md:py-10">
       <BudgetEditClient
         initial={{
           periodName: data.periodName,
@@ -32,6 +32,7 @@ export default async function BudgetEditPage() {
           fxRate: data.fxRate,
           incomeFrequency: data.incomeFrequency,
           budgetStartMode: data.budgetStartMode,
+          monthStartDay: data.monthStartDay,
           incomeAmount: data.incomeEntered,
           monthlyExpense: data.baselineExpenseMonthly,
           monthlySavings: data.baselineSavingsMonthly,

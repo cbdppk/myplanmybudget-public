@@ -26,7 +26,7 @@ function mapDashboardErrorToMessage(message: string) {
   return "Dashboard is temporarily unavailable. Please retry.";
 }
 
-function formatMovementLabel(raw: string, chartMode: "DAILY" | "MONTHLY" | "YEARLY", range: "WEEKLY" | "MONTHLY" | "YEARLY" | "ALL_TIME" | "SPECIFIC_MONTH") {
+function formatMovementLabel(raw: string, chartMode: "DAILY" | "MONTHLY" | "YEARLY", range: "DAY" | "WEEKLY" | "MONTHLY" | "YEARLY" | "ALL_TIME" | "SPECIFIC_MONTH") {
   if (chartMode === "YEARLY") return raw;
   if (chartMode === "MONTHLY") {
     const [year, month] = raw.split("-").map(Number);
@@ -79,7 +79,7 @@ function DashboardMetricCard({
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ notice?: string; range?: "WEEKLY" | "MONTHLY" | "YEARLY" | "ALL_TIME"; month?: string }>;
+  searchParams?: Promise<{ notice?: string; range?: "DAY" | "WEEKLY" | "MONTHLY" | "YEARLY" | "ALL_TIME"; month?: string }>;
 }) {
   const params = searchParams ? await searchParams : undefined;
   const requestHeaders = await headers();
@@ -105,7 +105,7 @@ export default async function DashboardPage({
 
   if (!data) {
     return (
-      <main className="mx-auto max-w-7xl px-4 py-10">
+      <main className="mx-auto max-w-7xl px-4 py-6 md:py-10">
         <PageHeader title="Dashboard" subtitle="Money overview" />
         {showAdminNotice ? <section className="mt-4 rounded-2xl border border-amber-300/60 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:border-amber-700/40 dark:text-amber-300">Admin access is restricted.</section> : null}
         {showOnboardingNotice ? (
@@ -129,31 +129,51 @@ export default async function DashboardPage({
   const movementLabels = data.movementSeries.map((item) => formatMovementLabel(item.label, data.filters.chartMode, data.filters.range));
   const incomeSeries = data.movementSeries.map((item) => item.income);
   const outflowSeries = data.movementSeries.map((item) => item.expense);
-  const movementMax = Math.max(1, ...incomeSeries, ...outflowSeries);
-  const netColor = data.net >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400";
+  const plannedSeries = data.plannedMovementSeries;
+  const movementMax = Math.max(1, ...incomeSeries, ...outflowSeries, ...plannedSeries);
   const topBudgetGap = data.budgetByCategory.filter((item) => item.kind === "expense" && item.remaining < 0).sort((a, b) => a.remaining - b.remaining)[0] ?? null;
 
   // ── Budget consumed (real spend vs plan) ──
   // Actual expense budget used as a % of the plan, with an "expected by now" pace marker
   // so the user can see whether real spending is ahead of or behind schedule.
   const budgetConsumedPct = Math.round(Math.min(100, Math.max(0, data.budgetStatusPct)));
-  const expectedPct = Math.round(Math.min(100, Math.max(0, data.expectedProgressPct)));
   const overPace = data.budgetPaceDelta > 0.01;
   const paceColor = budgetConsumedPct >= 100 ? "text-rose-600 dark:text-rose-400" : overPace ? "text-amber-600 dark:text-amber-400" : "text-emerald-700 dark:text-emerald-400";
   const paceBarColor = budgetConsumedPct >= 100 ? "bg-rose-500" : overPace ? "bg-amber-500" : "bg-sky-500";
 
-  // ── Money Health: actual cash flow for the window ──
-  // Uses real recorded transactions only, so it reconciles exactly with the Money movement
-  // chart totals below. The plan (baseline) is shown separately as a reference.
-  const healthIncome = data.income;
-  const healthExpenses = data.expenses;
-  const healthSavings = data.savings;
-  const healthNet = data.net;
-  const plannedNetRef = data.plannedIncome - data.plannedExpenses - data.plannedSavings;
-  const moneyHealthColor = healthNet >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400";
+  // ── Money Health: income for the selected window ──
+  // Responds to the filter: today/week show recorded income for that window;
+  // month shows the month's budget income merged with recorded + extras; all
+  // time shows every budget income accrued since signup + all recorded income.
+  const healthIncome = data.healthIncome;
+  const todayOut = data.todaySummary.expenses + data.todaySummary.savings;
+  const isWindowedIncome = range === "DAY" || range === "WEEKLY";
+  const healthTitle =
+    range === "DAY"
+      ? "today's income"
+      : range === "WEEKLY"
+        ? "income this week"
+        : range === "YEARLY"
+          ? "income this year"
+          : range === "ALL_TIME"
+            ? "all-time income"
+            : "total income this month";
+  const healthSubline = isWindowedIncome
+    ? `Income you've recorded ${range === "DAY" ? "today" : "this week"}`
+    : `Budget income ${money(data.healthRegularIncome)}${data.healthExtraIncome > 0 ? ` + extra income ${money(data.healthExtraIncome)}` : ""}`;
+
+  // Budget warning banner — extra spend over surplus is the serious one (eating
+  // into the plan); budget-full and over-pace are softer nudges.
+  const budgetWarningMessage = data.budgetWarning
+    ? data.budgetWarning.kind === "over-surplus"
+      ? `Extra spending is ${money(data.budgetWarning.amount)} over your available surplus — it's eating into your plan.`
+      : data.budgetWarning.kind === "budget-full"
+        ? "You've used your full expense budget for this window."
+        : `You're about ${money(data.budgetWarning.amount)} ahead of your expected spending pace.`
+    : null;
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8">
+    <main className="mx-auto max-w-7xl px-4 py-5 md:py-8">
       <PageHeader
         title="Dashboard"
         subtitle="Live budget and transaction overview."
@@ -176,81 +196,75 @@ export default async function DashboardPage({
         </section>
       ) : null}
 
+      {budgetWarningMessage ? (
+        <section
+          className={cn(
+            "mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm",
+            data.budgetWarning?.level === "bad"
+              ? "border-rose-300/60 bg-rose-500/10 text-rose-800 dark:border-rose-700/40 dark:text-rose-300"
+              : "border-amber-300/60 bg-amber-500/10 text-amber-800 dark:border-amber-700/40 dark:text-amber-300"
+          )}
+          role="status"
+        >
+          <p className="min-w-0 flex-1">{budgetWarningMessage}</p>
+          <LoadingLinkButton href="/budget" size="sm" variant="outline" className="shrink-0">Review budget</LoadingLinkButton>
+        </section>
+      ) : null}
+
       {/* Range filter + smart month picker */}
       <DashboardFilters range={range} month={month} userMonths={data.userMonths} />
 
       {/* ── Hero row: Money Health (actual) + Budget Pace (estimate) ── */}
       <section className="mt-5 grid gap-4 xl:grid-cols-[1.4fr,1fr]">
 
-        {/* Money Health — actual net cash flow + breakdown */}
+        {/* Money Health — the month's total income */}
         <article className="theme-card rounded-[1.75rem] p-6 shadow-sm">
           <div className="flex items-start justify-between gap-3">
-            <p className="text-sm font-medium text-[color:var(--text-secondary)]">Money health · {data.filters.windowLabel}</p>
-            <InfoPopover content="Your actual recorded cash flow for this window: real income minus real expenses and savings. These match the Money movement chart totals exactly." label="Money health explanation" />
+            <p className="text-sm font-medium text-[color:var(--text-secondary)]">Money health · {healthTitle}</p>
+            <InfoPopover content="Your income for the selected filter. Today and This week show income you've actually recorded in that window. This month shows the income set in your budget merged with recorded income (logging your salary doesn't double it) plus extra income. All time shows every budget income accrued since you signed up plus all recorded income." label="Money health explanation" />
           </div>
-          <p className={`mt-3 text-4xl font-semibold tracking-tight sm:text-5xl ${moneyHealthColor}`}>{money(healthNet)}</p>
-          <p className="mt-1 text-xs text-[color:var(--text-muted)]">Plan for this window: {money(plannedNetRef)} net</p>
+          <p className="mt-3 text-4xl font-semibold tracking-tight text-emerald-700 sm:text-5xl dark:text-emerald-400">{money(healthIncome)}</p>
+          <p className="mt-1 text-xs text-[color:var(--text-muted)]">{healthSubline}</p>
 
-          <div className="mt-4 grid gap-2 sm:grid-cols-3">
-            <DashboardMetricCard
-              label="Income"
-              value={money(healthIncome)}
-              hint="All income you've actually recorded in this window."
-              tone="good"
-              valueClassName="text-emerald-700 dark:text-emerald-300"
-            />
-            <DashboardMetricCard
-              label="Expenses"
-              value={money(healthExpenses)}
-              hint="All expenses you've actually recorded in this window (planned budget spend plus any off-budget extras)."
-              tone="bad"
-              valueClassName="text-rose-700 dark:text-rose-300"
-            />
-            <DashboardMetricCard
-              label="Saved"
-              value={money(healthSavings)}
-              hint="Money you've actually moved into savings in this window."
-              tone="info"
-              valueClassName="text-sky-700 dark:text-sky-300"
-            />
-          </div>
-
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
             <DashboardMetricCard
               label="Avg spend/day"
               value={money(data.burnRate)}
-              hint="Blended average daily spend: your actual transaction spend rate combined with your budget daily estimate."
-              detail="Transactions + budget estimate"
+              hint="Your budget expenses shared evenly across the days of the month, plus any extra (off-budget) spending averaged over the days that have passed."
+              detail={`Budget share ${money(data.dailyPlannedExpense)}/day`}
             />
             <DashboardMetricCard
               label="Today net"
               value={money(data.todaySummary.net)}
-              hint="Today only: logged income minus logged expense and savings."
-              detail={`${data.todaySummary.count} transaction${data.todaySummary.count === 1 ? "" : "s"} today`}
+              hint="Today only: income you've logged today minus expenses and savings you've logged today."
+              detail={`Today: in ${money(data.todaySummary.income)} · out ${money(todayOut)} · ${data.todaySummary.count} transaction${data.todaySummary.count === 1 ? "" : "s"}`}
               valueClassName={data.todaySummary.net >= 0 ? "text-emerald-700 dark:text-emerald-300" : "text-rose-600 dark:text-rose-300"}
             />
           </div>
           <p className="theme-card-soft mt-3 rounded-2xl px-3 py-2.5 text-xs text-[color:var(--text-secondary)]">{data.moneyGist}</p>
         </article>
 
-        {/* Budget Pace — estimated daily consumption vs plan */}
+        {/* Budget Pace — the bar fills day by day at the plan's daily average */}
         <article className="theme-card rounded-[1.75rem] p-6 shadow-sm">
           <div className="flex items-start justify-between gap-3">
             <p className="text-sm font-medium text-[color:var(--text-secondary)]">Budget used</p>
-            <InfoPopover content="Your actual expense spending as a percentage of your expense budget. The marker shows how much you'd expect to have used by today if you spent evenly — so you can tell whether you're ahead of or behind plan." label="Budget used explanation" />
+            <InfoPopover content="How your expense budget is being dissected day by day. The number is the budget released by your daily average so far (avg/day × days elapsed) — so on day 5 of a 30-day budget you've used about one-sixth of it even before logging anything. As you record spending it moves too: if you spend faster than the plan releases, your actual spend pulls the number up." label="Budget used explanation" />
           </div>
-          <p className={`mt-3 text-4xl font-semibold tracking-tight ${paceColor}`}>{budgetConsumedPct}%</p>
-          <p className="mt-1 text-xs text-[color:var(--text-muted)]">{money(data.used)} of {money(data.budgeted)} spent</p>
+          <p className={`mt-3 text-4xl font-semibold tracking-tight ${paceColor}`}>{money(data.used)}</p>
+          <p className="mt-1 text-xs text-[color:var(--text-muted)]">
+            of {money(data.budgeted)} budget · {money(data.dailyPlannedExpenseAmount)}/day × day {data.dayOfPeriod} of {data.daysInPeriodCount}
+          </p>
 
-          {/* Budget-used bar with expected-by-now marker */}
-          <div className="relative mt-4 h-3 rounded-full bg-[color:var(--page-secondary)]">
-            <div className={`h-3 rounded-full transition-all ${paceBarColor}`} style={{ width: `${budgetConsumedPct}%` }} />
-            <div className="absolute top-[-3px] h-[18px] w-0.5 bg-[color:var(--text-primary)]/50" style={{ left: `${expectedPct}%` }} title="Expected by now" />
+          {/* Budget-used bar: main fill = plan released so far (moves daily),
+              inner marker = what's actually been spent */}
+          <div className="relative mt-4 h-3 overflow-hidden rounded-full bg-[color:var(--page-secondary)]">
+            <div className={`h-3 rounded-full transition-all ${paceBarColor}`} style={{ width: `${budgetConsumedPct}%` }} title={`Released by the daily plan: ${money(data.used)}`} />
+            <div className="absolute top-[-3px] h-[18px] w-0.5 bg-[color:var(--text-primary)]/60" style={{ left: `${Math.min(100, Math.max(0, Math.round((data.actualSpent / Math.max(1, data.budgeted)) * 100)))}%` }} title={`Actually spent: ${money(data.actualSpent)}`} />
           </div>
           <p className="mt-2 text-[11px] text-[color:var(--text-muted)]">
             {overPace
-              ? `Ahead of plan — about ${money(data.budgetPaceDelta)} over the expected pace.`
-              : `On track — expected ${expectedPct}% used by now.`}
+              ? `You've actually spent ${money(data.actualSpent)} — about ${money(data.budgetPaceDelta)} ahead of the ${money(data.budgetExpectedToDate)} the plan releases by day ${data.dayOfPeriod}.`
+              : `Plan releases ${money(data.budgetExpectedToDate)} by day ${data.dayOfPeriod}; you've actually spent ${money(data.actualSpent)}. ${money(data.budgetRemaining)} of the budget still to come.`}
           </p>
 
           {topBudgetGap ? (
@@ -284,45 +298,57 @@ export default async function DashboardPage({
       <section className="mt-4 grid gap-4 xl:grid-cols-[1.3fr,0.7fr]">
         {/* Movement chart — bigger with summary stats */}
         <article className="theme-card rounded-[1.75rem] p-5 shadow-sm">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-[color:var(--text-secondary)]">Money movement</p>
+          {/*
+            Stacks on narrow screens. Previously the title, the info button and
+            the legend were three siblings on one wrapping row, and the title
+            carried `flex-1 min-w-0` — so it absorbed all the shrinkage and
+            collapsed to one word per line instead of letting the legend wrap
+            onto its own row.
+          */}
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-medium text-[color:var(--text-secondary)]">Money movement</p>
+                <InfoPopover content="Compares actual money in and money out over the selected range. The dashed line is your plan: the expected expenditure per day, spiking to your planned income on the income day of each month." label="Money movement explanation" />
+              </div>
               <p className="mt-0.5 text-xs text-[color:var(--text-muted)]">{data.filters.chartLabel} · hover or tap any point for details</p>
             </div>
-            <InfoPopover content="Compares actual money in and money out over the selected range. Use it to spot spikes, slow weeks, and whether outflow is outrunning income." label="Money movement explanation" />
-            <div className="flex flex-wrap gap-3 text-xs text-[color:var(--text-secondary)] sm:justify-end">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[color:var(--text-secondary)] sm:shrink-0 sm:justify-end">
               <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-5 rounded-full bg-sky-500" />Income</span>
               <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-5 rounded-full bg-orange-500" />Out</span>
+              <span className="flex items-center gap-1.5"><span className="inline-block h-0.5 w-5 border-t-2 border-dashed border-violet-500" />Expected</span>
             </div>
           </div>
           {/* Period totals */}
           <div className="mt-3 grid gap-2 sm:grid-cols-3">
             <DashboardMetricCard
               label="Total in"
-              value={money(data.income)}
-              hint="All income recorded in the current chart window."
+              value={money(data.actualIncomeTotal)}
+              hint="Income you've actually recorded in this window. Matches the income line on the chart."
               tone="good"
               valueClassName="text-emerald-700 dark:text-emerald-300"
             />
             <DashboardMetricCard
               label="Total out"
-              value={money(data.expenses + data.savings)}
-              hint="All money out in the current chart window: expenses plus extra savings."
+              value={money(data.actualExpenseTotal + data.actualSavingsTotal)}
+              hint="Money you've actually recorded going out in this window: real expenses plus savings moved. Matches the money-out line on the chart."
               tone="bad"
               valueClassName="text-rose-700 dark:text-rose-300"
             />
             <DashboardMetricCard
               label="Net"
-              value={money(data.net)}
-              hint="Income minus total out for the current chart window."
-              tone={data.net >= 0 ? "neutral" : "bad"}
-              valueClassName={data.net >= 0 ? "text-[color:var(--text-primary)]" : "text-rose-700 dark:text-rose-300"}
+              value={money(data.actualNet)}
+              hint="Recorded income minus recorded money out for this window — your real transaction net."
+              tone={data.actualNet >= 0 ? "neutral" : "bad"}
+              valueClassName={data.actualNet >= 0 ? "text-[color:var(--text-primary)]" : "text-rose-700 dark:text-rose-300"}
             />
           </div>
           <div className="mt-3">
             <MiniLineChart
               values={incomeSeries}
               secondValues={outflowSeries}
+              plannedValues={plannedSeries}
+              plannedLabel="Expected/day"
               minValue={0}
               maxValue={movementMax}
               xLabels={movementLabels}

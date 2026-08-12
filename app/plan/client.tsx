@@ -77,6 +77,7 @@ function Card({
   openTip,
   setOpenTip,
   badge,
+  sub,
 }: {
   title: string;
   value: string;
@@ -85,6 +86,7 @@ function Card({
   openTip: string | null;
   setOpenTip: (value: string | null) => void;
   badge?: { label: string; className: string };
+  sub?: string;
 }) {
   return (
     <article className="rounded-xl border border-sky-100 bg-white p-3 text-sm shadow-sm">
@@ -93,6 +95,7 @@ function Card({
         <InfoTip id={tipId} text={hint} openTip={openTip} setOpenTip={setOpenTip} />
       </div>
       <p className="mt-1 font-semibold">{value}</p>
+      {sub ? <p className="mt-0.5 text-[11px] text-black/45">{sub}</p> : null}
       {badge ? <p className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${badge.className}`}>{badge.label}</p> : null}
     </article>
   );
@@ -176,6 +179,8 @@ export function BudgetPlanner({
     monthExpenseOnly: number;
     monthSavings: number;
     monthExpense: number;
+    effectiveIncome: number;
+    realBalance: number;
     expectedExpenseToDate: number;
     expenseDrift: number;
     projectedExpenseAtMonthEnd: number;
@@ -229,11 +234,20 @@ export function BudgetPlanner({
     setSaveError(null);
   }
 
-  const draftTotal = Object.values(draftAmounts).reduce((sum, v) => {
-    const n = parseFloat(v);
-    return sum + (Number.isFinite(n) ? Math.max(0, n) : 0);
-  }, 0);
-  const overBudget = draftTotal > baseline.monthIncome;
+  const draftAmountFor = (categoryId: string) => {
+    const value = parseFloat(draftAmounts[categoryId] ?? "0");
+    return Number.isFinite(value) ? Math.max(0, value) : 0;
+  };
+  const draftExpenseTotal = items
+    .filter((item) => item.kind === "expense")
+    .reduce((sum, item) => sum + draftAmountFor(item.categoryId), 0);
+  const draftSavingsTotal = items
+    .filter((item) => item.kind === "savings")
+    .reduce((sum, item) => sum + draftAmountFor(item.categoryId), 0);
+  const draftTotal = draftExpenseTotal + draftSavingsTotal;
+  const overExpense = draftExpenseTotal > baseline.monthExpense + 0.01;
+  const overSavings = draftSavingsTotal > baseline.monthSavings + 0.01;
+  const overBudget = overExpense || overSavings;
 
   function handleSave() {
     if (overBudget) return;
@@ -259,20 +273,25 @@ export function BudgetPlanner({
   const savings = Math.max(0, baseline.monthSavings);
 
   const recordedIncome = round2(actual.monthIncome);
-  const recordedExpenseOnly = round2(actual.monthExpenseOnly);
+  const recordedExpenseOnly = round2(actual.monthExpenseOnly); // planned expense only
+  const recordedExtraExpense = round2(extrasSummary.extraExpense); // off-budget extra spend
+  const recordedExpenseAll = round2(recordedExpenseOnly + recordedExtraExpense); // all real money out
   const recordedSavings = round2(actual.monthSavings);
-  // Real balance: monthly income (plan or actual, whichever is higher) minus what's been spent/saved
-  // Answers: "Of this month's expected income, how much is still available?"
-  // Includes the plan surplus so users see money they haven't committed to yet
-  const balanceAcrossBoard = round2(Math.max(baseline.monthIncome, recordedIncome) - recordedExpenseOnly - recordedSavings);
-  // Extra income = anything logged above your plan baseline
-  const newIncome = round2(Math.max(0, recordedIncome - baseline.monthIncome));
-  // Plan surplus = what's left of your planned income after planned spending
-  const planSurplus = round2(Math.max(0, baseline.monthIncome - expenditure - savings));
+  // The depleting plan ("expected by now" if you tracked the budget evenly) is a
+  // PACE REFERENCE only — it is never treated as money already gone, so the Real
+  // balance below stays truthful for users who haven't logged much yet.
+  const plannedExpenseToDate = round2(actual.expectedExpenseToDate);
+  const plannedSavingsToDate = round2((baseline.monthSavings / Math.max(1, baseline.daysInMonth)) * baseline.dayOfMonth);
+  // Real balance comes from the canonical ledger calculation: carry-in plus
+  // reconciled regular/extra income minus actual expenses and savings.
+  const balanceAcrossBoard = round2(actual.realBalance);
+  const newIncome = round2(extrasSummary.extraIncome);
+  // Keep flex room aligned with the ledger: carry-in + reconciled income funds
+  // the plan, then off-budget extra spending draws down what is unallocated.
+  const planSurplus = round2(Math.max(0, actual.effectiveIncome - expenditure - savings - recordedExtraExpense));
   // Flex room per remaining day = plan surplus divided by days left this period
   const dailyFlexRoom = daysRemaining > 0 ? round2(planSurplus / daysRemaining) : planSurplus;
   const extraMoney = planSurplus;
-  const totalMoneyNow = round2(Math.max(0, recordedIncome - recordedExpenseOnly - recordedSavings));
   // New-period notice: show if we are within first 3 days of the period
   const isNewPeriod = (() => {
     try {
@@ -284,19 +303,10 @@ export function BudgetPlanner({
     }
   })();
 
-  const personalSavings = round2(savings * 0.7);
-  const savingsItemsTotal = round2(savingsItems.reduce((sum, item) => sum + Math.max(0, item.amount), 0));
-  const savingsRatio = savingsItemsTotal > 0 ? Math.min(1, savings / savingsItemsTotal) : 1;
-  const savingsItemsCapped = savingsItems.map((item, index) => {
-    if (savingsRatio >= 1) return item;
-    if (index === savingsItems.length - 1) {
-      const prior = savingsItems
-        .slice(0, index)
-        .reduce((sum, prev) => sum + round2(Math.max(0, prev.amount) * savingsRatio), 0);
-      return { ...item, amount: Math.max(0, round2(savings - prior)) };
-    }
-    return { ...item, amount: round2(Math.max(0, item.amount) * savingsRatio) };
-  });
+  const savingsItemsTotal = round2(
+    savingsItems.reduce((sum, item) => sum + Math.max(0, item.monthlyEquivalent ?? item.amount), 0)
+  );
+  const unallocatedSavings = round2(Math.max(0, savings - savingsItemsTotal));
 
   const combinedOutflow = round2(expenditure + savings);
   const incomeLine = [
@@ -311,7 +321,7 @@ export function BudgetPlanner({
     0,
     round2(combinedOutflow * 0.25),
     round2(combinedOutflow * 0.5),
-    round2(actual.monthExpense + savings),
+    round2(recordedExpenseAll + recordedSavings),
     round2(actual.projectedExpenseAtMonthEnd + savings),
     round2(combinedOutflow),
   ];
@@ -333,9 +343,6 @@ export function BudgetPlanner({
         flex: round2(planSurplus * 12 * lifetimeYears),
       },
     }[scope];
-
-    const monthlyOutflow = Math.max(1, expenditure + savings);
-    const lifetimeCoverageMonths = Math.max(0, Math.floor(totalMoneyNow / monthlyOutflow));
 
     const bullets = [
       `Planned savings (${scopeConfig.label}): ${toMoney(scopeConfig.savings, currency, fxRate)}`,
@@ -363,7 +370,7 @@ export function BudgetPlanner({
     }
 
     return bullets;
-  }, [actual.monthIncome, baseline.daysInMonth, baseline.monthIncome, currency, dailyFlexRoom, expenditure, fxRate, lifetimeYears, planSurplus, savings, scope, totalMoneyNow]);
+  }, [actual.monthIncome, baseline.daysInMonth, baseline.monthIncome, currency, dailyFlexRoom, expenditure, fxRate, lifetimeYears, planSurplus, savings, scope]);
 
   const pieValues = [
     { label: "Expenditure", value: expenditure, color: "#0ea5e9" },
@@ -418,7 +425,7 @@ export function BudgetPlanner({
           <Card tipId="income" openTip={openTip} setOpenTip={setOpenTip} title="Planned income" value={toMoney(baseline.monthIncome, currency, fxRate)} hint="The monthly income you set in your budget. Your expected earnings this period." badge={{ label: "Plan", className: "bg-sky-100 text-sky-800" }} />
           <Card tipId="expenditure" openTip={openTip} setOpenTip={setOpenTip} title="Planned expenses" value={toMoney(expenditure, currency, fxRate)} hint="What you planned to spend on expenses this month — not what you have spent yet." badge={{ label: "Plan", className: "bg-rose-100 text-rose-800" }} />
           <Card tipId="savings" openTip={openTip} setOpenTip={setOpenTip} title="Planned savings" value={toMoney(savings, currency, fxRate)} hint="What you planned to save this month — not what has been saved yet." badge={{ label: "Plan", className: "bg-emerald-100 text-emerald-800" }} />
-          <Card tipId="balance" openTip={openTip} setOpenTip={setOpenTip} title="Real balance" value={toMoney(balanceAcrossBoard, currency, fxRate)} hint="Your monthly income plan (or actual income if higher) minus actual expenses and savings logged. Shows how much of this month's money is still available — includes your unspent budget surplus." badge={{ label: balanceAcrossBoard >= 0 ? "Available" : "Overspent", className: balanceAcrossBoard >= 0 ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800" }} />
+          <Card tipId="balance" openTip={openTip} setOpenTip={setOpenTip} title="Real balance" value={toMoney(balanceAcrossBoard, currency, fxRate)} sub={`Plan pace by now: ${toMoney(plannedExpenseToDate + plannedSavingsToDate, currency, fxRate)} used`} hint="Your carry-in plus reconciled regular income and extra income, minus what you've actually spent and saved. The plan-pace line is a reference, not money already gone." badge={{ label: balanceAcrossBoard >= 0 ? "Available" : "Overspent", className: balanceAcrossBoard >= 0 ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800" }} />
           <Card tipId="income-logged" openTip={openTip} setOpenTip={setOpenTip} title="Income logged" value={toMoney(recordedIncome, currency, fxRate)} hint="Total income transactions you have recorded this period. Includes your baseline pay and any extra income." badge={newIncome > 0 ? { label: `+${toMoney(newIncome, currency, fxRate)} extra`, className: "bg-violet-100 text-violet-800" } : undefined} />
         </div>
       </section>
@@ -508,7 +515,7 @@ export function BudgetPlanner({
         <p className="font-semibold">How extras affected this month</p>
         <div className="mt-2 space-y-1 text-black/75">
           <p>Extra income + {toMoney(extrasSummary.extraIncome, currency, fxRate)} updated your month.</p>
-          <p>Extra expenses - {toMoney(extrasSummary.extraExpense, currency, fxRate)} reduced remaining budget.</p>
+          <p>Extra expenses - {toMoney(extrasSummary.extraExpense, currency, fxRate)} drawn from your surplus (not your category budgets).</p>
           <p>Extra savings - {toMoney(extrasSummary.extraSavings, currency, fxRate)} moved to savings.</p>
         </div>
       </section>
@@ -547,12 +554,16 @@ export function BudgetPlanner({
 
         {editMode ? (
           <div className="mt-4 space-y-3">
-            <div className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold ${overBudget ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700"}`}>
+            <div className={`flex flex-wrap items-center justify-between gap-2 rounded-xl px-3 py-2 text-xs font-semibold ${overBudget ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700"}`}>
               <span>Total allocated: {toMoney(round2(draftTotal), currency, fxRate)}</span>
-              <span>Budget income: {toMoney(baseline.monthIncome, currency, fxRate)}</span>
+              <span>Expenses: {toMoney(round2(draftExpenseTotal), currency, fxRate)} / {toMoney(baseline.monthExpense, currency, fxRate)}</span>
+              <span>Savings: {toMoney(round2(draftSavingsTotal), currency, fxRate)} / {toMoney(baseline.monthSavings, currency, fxRate)}</span>
             </div>
             {overBudget ? (
-              <p className="text-xs text-rose-600">Total exceeds your income by {toMoney(round2(draftTotal - baseline.monthIncome), currency, fxRate)}. Reduce category amounts before saving.</p>
+              <p className="text-xs text-rose-600">
+                {overExpense ? `Expense categories exceed the expense plan by ${toMoney(round2(draftExpenseTotal - baseline.monthExpense), currency, fxRate)}. ` : ""}
+                {overSavings ? `Savings categories exceed the savings plan by ${toMoney(round2(draftSavingsTotal - baseline.monthSavings), currency, fxRate)}.` : ""}
+              </p>
             ) : null}
             <div className="grid gap-2 sm:grid-cols-2">
               {items
@@ -623,7 +634,7 @@ export function BudgetPlanner({
                 <p className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-800">{toMoney(savings, currency, fxRate)}</p>
               </div>
               <div className="mt-3 space-y-2 text-sm">
-                {savingsItemsCapped.map((item) => (
+                {savingsItems.map((item) => (
                   <div key={item.categoryId} className="flex flex-col gap-2 rounded-lg bg-black/[0.03] px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       <p>{item.name}</p>
@@ -634,10 +645,12 @@ export function BudgetPlanner({
                     <p>{toMoney(item.monthlyEquivalent ?? item.amount, currency, fxRate)}</p>
                   </div>
                 ))}
-                <div className="flex flex-col gap-2 rounded-lg bg-black/[0.03] px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
-                  <p>Personal savings</p>
-                  <p>{toMoney(personalSavings, currency, fxRate)}</p>
-                </div>
+                {unallocatedSavings > 0.01 ? (
+                  <div className="flex flex-col gap-2 rounded-lg bg-black/[0.03] px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                    <p>Unallocated savings</p>
+                    <p>{toMoney(unallocatedSavings, currency, fxRate)}</p>
+                  </div>
+                ) : null}
               </div>
             </article>
           </div>

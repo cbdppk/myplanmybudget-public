@@ -68,7 +68,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     };
 
     const base = cn(
-      "inline-flex items-center justify-center gap-2 rounded-2xl font-medium transition",
+      "relative inline-flex items-center justify-center gap-2 rounded-2xl font-medium transition",
       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/50",
       "disabled:pointer-events-none disabled:opacity-50",
       styles[variant],
@@ -77,8 +77,9 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     );
 
     if (asChild) {
-      if (React.isValidElement<{ className?: string }>(children) && children.type === Link) {
-        return React.cloneElement(children, { className: cn(base, children.props.className) });
+      const child = children as React.ReactElement<{ className?: string }>;
+      if (child?.type === Link) {
+        return React.cloneElement(child, { className: cn(base, child.props.className) });
       }
       return <span className={base}>{children}</span>;
     }
@@ -93,8 +94,12 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         onClick={handleClick}
         {...props}
       >
-        {busy ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" /> : null}
-        {children}
+        <span className={cn("inline-flex items-center justify-center gap-2", busy && "invisible")}>{children}</span>
+        {busy ? (
+          <span className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
+            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+          </span>
+        ) : null}
       </button>
     );
   }

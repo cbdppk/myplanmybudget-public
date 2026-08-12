@@ -81,7 +81,7 @@ export default async function OnboardingPage() {
 
   if (!user) {
     return (
-      <main className="mx-auto max-w-3xl px-4 py-10">
+      <main className="mx-auto max-w-3xl px-4 py-6 md:py-10">
         <PageHeader
           title="Onboarding"
           subtitle="Create your baseline budget workspace."
@@ -102,7 +102,7 @@ export default async function OnboardingPage() {
   }
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-10">
+    <main className="mx-auto max-w-3xl px-4 py-6 md:py-10">
       <PageHeader
         title="Onboarding"
         subtitle="Create your baseline budget workspace."

@@ -15,7 +15,7 @@ export default async function TrackPage() {
 
   if (!data) {
     return (
-      <main className="mx-auto max-w-5xl px-4 py-10">
+      <main className="mx-auto max-w-6xl px-4 py-5 md:py-8">
         <PageHeader title="Transactions" subtitle="Track income and expenses in one place." />
         <DataLoadError primaryHref="/dashboard" primaryLabel="Open dashboard" />
       </main>
@@ -23,7 +23,7 @@ export default async function TrackPage() {
   }
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-10">
+    <main className="mx-auto max-w-6xl px-4 py-5 md:py-8">
       <PageHeader title="Transactions" subtitle="What is happening to your money right now." />
       <div className="mt-6">
         <TrackFeedClient
@@ -36,6 +36,11 @@ export default async function TrackPage() {
           impact={data.impact}
           categories={data.filters.categories}
           transactions={data.transactions}
+          accounts={data.accounts}
+          netWorth={data.netWorth}
+          clearedNetWorth={data.clearedNetWorth}
+          assetsTotal={data.assetsTotal}
+          liabilitiesTotal={data.liabilitiesTotal}
         />
       </div>
     </main>

@@ -99,6 +99,16 @@ textarea::placeholder {
   color: var(--text-primary);
 }
 
+/* Theme-aware skeleton bone — adapts to light/dark so loading states never
+   render light-grey blocks on a dark page. Use on placeholder rects in
+   loading.tsx files. The parent should carry `animate-pulse`. */
+.skeleton {
+  background-color: color-mix(in srgb, var(--text-primary) 10%, transparent);
+}
+.skeleton-strong {
+  background-color: color-mix(in srgb, var(--text-primary) 16%, transparent);
+}
+
 .theme-card-soft {
   background-color: color-mix(in srgb, var(--page-secondary) 74%, var(--card-bg));
   border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);

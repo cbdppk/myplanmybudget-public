@@ -15,7 +15,7 @@ export default async function GoalsPage() {
 
   if (!data) {
     return (
-      <main className="mx-auto max-w-5xl px-4 py-10">
+      <main className="mx-auto max-w-6xl px-4 py-5 md:py-8">
         <PageHeader title="Goals" subtitle="Plan and track your target purchases and savings goals." />
         <DataLoadError primaryHref="/dashboard" primaryLabel="Open dashboard" />
       </main>
@@ -23,7 +23,7 @@ export default async function GoalsPage() {
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-10">
+    <main className="mx-auto max-w-6xl px-4 py-5 md:py-8">
       <PageHeader title="Goals" subtitle="Plan purchases and savings goals from your baseline and real transaction flow." />
       <div className="mt-6">
         <GoalsClient

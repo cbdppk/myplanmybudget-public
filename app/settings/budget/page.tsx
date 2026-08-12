@@ -30,6 +30,7 @@ export default async function SettingsBudgetPage() {
         blockExtrasWhenSurplusNegative: data.user.blockExtrasWhenSurplusNegative,
         showSimulationSuggestion: data.user.showSimulationSuggestion,
         updatedAt: data.user.updatedAt.toISOString(),
+        daysInPeriod: data.budget.daysInPeriod,
         categories: data.budget.categories,
       }}
     />

@@ -64,7 +64,7 @@ export default async function PostLoginPage() {
     if (isDbUnavailableError(error)) {
       console.warn("post_login_db_unavailable", { email });
       return (
-        <main className="mx-auto max-w-3xl px-4 py-10">
+        <main className="mx-auto max-w-3xl px-4 py-6 md:py-10">
           <PageHeader title="Post-login check" subtitle="We are verifying your account setup." />
           <DataLoadError
             message="We could not verify your account right now because the database is temporarily unavailable."
@@ -118,7 +118,7 @@ export default async function PostLoginPage() {
       if (isDbUnavailableError(error)) {
         console.warn("post_login_profile_bootstrap_db_unavailable", { email });
         return (
-          <main className="mx-auto max-w-3xl px-4 py-10">
+          <main className="mx-auto max-w-3xl px-4 py-6 md:py-10">
             <PageHeader title="Post-login check" subtitle="We are setting up your account profile." />
             <DataLoadError
               message="We could not initialize your profile right now because the database is temporarily unavailable."

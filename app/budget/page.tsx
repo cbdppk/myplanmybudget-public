@@ -27,7 +27,7 @@ export default async function BudgetPage() {
 
   if (!data) {
     return (
-      <main className="mx-auto max-w-5xl px-4 py-10">
+      <main className="mx-auto max-w-5xl px-4 py-6 md:py-10">
         <PageHeader title="Budget" subtitle="View your baseline summary." />
         <DataLoadError primaryHref="/dashboard" primaryLabel="Open dashboard" />
       </main>
@@ -35,7 +35,7 @@ export default async function BudgetPage() {
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-10">
+    <main className="mx-auto max-w-5xl px-4 py-6 md:py-10">
       <PageHeader title="Budget" subtitle={`Plan-first dashboard for ${data.period.name}.`} />
       <div className="mt-6">
         <BudgetPlanner items={data.items} currency={data.currency.preferred} fxRate={data.currency.rate} baseline={data.baseline} actual={data.actual} guidance={data.guidance} extrasSummary={data.extrasSummary} daysRemaining={data.daysRemaining} periodStartDate={data.period.startDate.toISOString()} />
