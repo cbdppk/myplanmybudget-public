@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-
+//route
 export function RouteProgress() {
   const pathname = usePathname();
   const [width, setWidth] = useState(0);
