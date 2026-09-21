@@ -31,7 +31,7 @@
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "@radix-ui/react-collapsible": "^1.1.12",
-    "@sentry/nextjs": "^10.63.0",
+    "@sentry/nextjs": "^10.75.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.473.0",
     "next": "^15.5.21",
